@@ -8,15 +8,17 @@ This package keeps the main `skills/` workflows available for OpenAI Codex CLI.
 
 Recent core workflow follow-up skills mirrored here include:
 
+- `yolo-pipeline`
 - `training-check`
 - `result-to-claim`
 - `ablation-planner`
 
 These skills cover the experiment follow-up chain:
 
-1. monitor training quality early
-2. judge what claims the results actually support
-3. design reviewer-facing ablations before paper writing
+1. run a Windows-native Ultralytics YOLO + ClearML defect-detection lifecycle
+2. monitor training quality early
+3. judge what claims the results actually support
+4. design reviewer-facing ablations before paper writing
 
 ## Install
 

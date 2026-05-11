@@ -1,0 +1,16 @@
+# YOLO / ClearML safety defaults
+datasets/
+data/
+runs/
+weights/
+checkpoints/
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.engine
+*.mlpackage
+.clearml/
+clearml.conf
+__pycache__/
+*.pyc

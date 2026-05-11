@@ -15,6 +15,7 @@ Read the project's `AGENTS.md` to determine the experiment environment:
 
 - **Local GPU**: Look for local CUDA/MPS setup info
 - **Remote server**: Look for SSH alias, conda env, code directory
+- **Windows native**: Look for `train_target: windows-native`, Windows host/project dir, conda env, ClearML queue, and PowerShell launch mode
 
 If no server info is found in `AGENTS.md`, ask the user.
 
@@ -25,6 +26,14 @@ Check GPU availability on the target machine:
 **Remote:**
 ```bash
 ssh <server> nvidia-smi --query-gpu=index,memory.used,memory.total --format=csv,noheader
+```
+
+**Windows native (PowerShell over SSH or local PowerShell):**
+```powershell
+nvidia-smi --query-gpu=index,memory.used,memory.total --format=csv,noheader
+conda activate <env>
+python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"
+clearml-agent list
 ```
 
 **Local:**
@@ -112,6 +121,46 @@ ssh <server> "screen -dmS <exp_name> bash -c '\
   CUDA_VISIBLE_DEVICES=<gpu_id> python <script> <args> 2>&1 | tee <log_file>'"
 ```
 
+#### Windows native (ClearML Agent preferred)
+
+Use this branch when `AGENTS.md` says `train_target: windows-native`, `gpu: windows`, or a project-specific YOLO/ClearML workflow asks for Windows training.
+
+Do not use `screen` on Windows. First verify ClearML Web API credentials with `clearml-init`, then run one direct script before queueing Agent tasks:
+
+```powershell
+conda activate <env>
+python train_yolo_clearml.py --task-name <exp_name> --data-yaml <data.yaml> --model yolo11n.pt --imgsz 640 --epochs 1 --batch -1
+```
+
+After the direct run appears in ClearML, use ClearML Agent queues:
+
+```powershell
+clearml-agent daemon --queue <queue-name> --foreground
+```
+
+Submit repeatable tasks from the Mac/Codex side through the private GitHub repo:
+
+```powershell
+clearml-task --project <clearml-project> --name <exp_name> --repo <github-private-repo-url> --branch <branch> --queue <queue-name> --script <script.py> --args "<script argparse arguments>"
+```
+
+For the very first smoke test, a direct foreground Ultralytics command is allowed:
+
+```powershell
+conda activate <env>
+yolo detect train model=yolo11n.pt data=<data.yaml> imgsz=640 epochs=1 batch=-1 project=runs\yolo name=smoke_yolo11n_1epoch
+```
+
+If ClearML Agent is not ready yet, use PowerShell background jobs only as a fallback:
+
+```powershell
+Start-Job -Name <exp_name> -ScriptBlock {
+  Set-Location "<windows_project_dir>"
+  conda activate <env>
+  yolo detect train model=yolo11n.pt data=<data.yaml> imgsz=640 epochs=100 batch=-1 project=runs\yolo name=<exp_name>
+}
+```
+
 #### Local
 
 ```bash
@@ -131,6 +180,13 @@ For local long-running jobs, use `run_in_background: true` to keep the conversat
 ssh <server> "screen -ls"
 ```
 
+**Windows native:**
+```powershell
+clearml-agent list
+Get-Job
+nvidia-smi
+```
+
 **Local:**
 Check process is running and GPU is allocated.
 
@@ -144,6 +200,7 @@ After deployment is verified, check `~/.codex/feishu.json`:
 
 - ALWAYS check GPU availability first — never blindly assign GPUs
 - Each experiment gets its own screen session + GPU (remote) or background process (local)
+- On Windows, each experiment should run through ClearML Agent or a named PowerShell job; never assume `screen`
 - Use `tee` to save logs for later inspection
 - Run deployment commands with `run_in_background: true` to keep conversation responsive
 - Report back: which GPU, which screen/process, what command, estimated time
@@ -167,6 +224,21 @@ Users should add their server info to their project's `AGENTS.md`:
 ## Local Environment
 - Mac MPS / Linux CUDA
 - Conda env: `ml` (Python 3.10 + PyTorch)
+
+## Windows Native + ClearML
+- task: YOLO defect detection
+- framework: ultralytics
+- data_yaml: C:\datasets\defect\data.yaml
+- clearml_project: yolo
+- clearml_queue: yolo-windows
+- train_target: windows-native
+- gpu: windows
+- windows_host: win-gpu
+- windows_project_dir: C:\work\yolo
+- conda_env: yolo
+- code_sync: git
+- github_repo: https://github.com/<user>/<private-repo>
+- large_files_policy: do-not-git-data-or-weights
 ```
 
 > **W&B setup**: Run `wandb login` on your server once (or set `WANDB_API_KEY` env var). The skill reads project/entity from `AGENTS.md` and adds `wandb.init()` + `wandb.log()` to your training scripts automatically. Dashboard: `https://wandb.ai/<entity>/<project>`.

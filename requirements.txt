@@ -1,0 +1,4 @@
+ultralytics
+clearml
+clearml-agent
+pyyaml

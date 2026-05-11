@@ -1,6 +1,6 @@
 # Auto-claude-code-research-in-sleep (ARIS ⚔️🌙)
 
-💡 *Use ARIS in Claude Code / Cursor / Trae as a skill-based workflow, or get the full experience with the standalone CLI — enjoy any way you like!*
+💡 *Use ARIS in Codex CLI / Cursor / Trae as a skill-based workflow, or get the full experience with the standalone CLI — enjoy any way you like!*
 
 🤖 **AI agents:** Read [`AGENT_GUIDE.md`](AGENT_GUIDE.md) instead — structured for LLM consumption, not human browsing.
 
@@ -44,7 +44,7 @@
 
 ![Score Progression](docs/auto_review_score_curve.png)
 
-> 🌙 **Let Claude Code do research while you sleep.** Wake up to find your paper scored, weaknesses identified, experiments run, and narrative rewritten — autonomously.
+> 🌙 **Let Codex do research while you sleep.** Wake up to find your paper scored, weaknesses identified, experiments run, and narrative rewritten — autonomously.
 >
 > 🪶 **Radically lightweight — zero dependencies, zero lock-in.** The entire system is plain Markdown files. No framework to learn, no database to maintain, no Docker to configure, no daemon to babysit. Every skill is a single `SKILL.md` readable by any LLM — swap Claude Code for [Codex CLI](skills/skills-codex/), [OpenClaw](docs/OPENCLAW_ADAPTATION.md), [Cursor](docs/CURSOR_ADAPTATION.md), [Trae](docs/TRAE_ARIS_RUNBOOK_EN.md), [Antigravity](docs/ANTIGRAVITY_ADAPTATION.md), Windsurf, or your own agent and the workflows still work. Fork it, rewrite it, adapt it to your stack.
 >
@@ -52,21 +52,29 @@
 
 [![Featured on PaperWeekly](https://img.shields.io/badge/Featured%20on-PaperWeekly-red?style=flat)](https://mp.weixin.qq.com/s/tDniVryVGjDkkkWl-5sTkQ) · [![PaperWeekly — MiniMax-M2.7](https://img.shields.io/badge/PaperWeekly-MiniMax--M2.7-red?style=flat)](https://mp.weixin.qq.com/s/KLFU74lAL2FAIc9K6i1Kqg) · [![Featured in awesome-agent-skills](https://img.shields.io/badge/Featured%20in-awesome--agent--skills-blue?style=flat&logo=github)](https://github.com/VoltAgent/awesome-agent-skills) · [![AI Digital Crew - Project of the Day](https://img.shields.io/badge/AI%20Digital%20Crew-Project%20of%20the%20Day%20(2026.03.14)-orange?style=flat)](https://aidigitalcrew.com) · [💬 Join Community](#-community) · [![Cite](https://img.shields.io/badge/📖_Cite_Us-BibTeX-green?style=flat)](#-citation)
 
-Custom [Claude Code](https://docs.anthropic.com/en/docs/claude-code) skills for autonomous ML research workflows. These skills orchestrate **cross-model collaboration** — Claude Code drives the research while an external LLM (via [Codex MCP](https://github.com/openai/codex)) acts as a critical reviewer. 🔀 **Also supports [alternative model combinations](#-alternative-model-combinations) (Kimi, LongCat, DeepSeek, etc.) — no Claude or OpenAI API required.** For example, [MiniMax-M2.7 + GLM-5 or GLM-5 + MiniMax-M2.7](docs/MiniMax-GLM-Configuration.md). 🤖 **[Codex CLI native](skills/skills-codex/)** — full skill set also available for OpenAI Codex. 🖱️ **[Cursor](docs/CURSOR_ADAPTATION.md)** — works in Cursor too. 🖥️ **[Trae](docs/TRAE_ARIS_RUNBOOK_EN.md)** — ByteDance AI IDE. 🚀 **[Antigravity](docs/ANTIGRAVITY_ADAPTATION.md)** — Google's agent-first IDE. 🆓 **[Free tier via ModelScope](docs/MODELSCOPE_GUIDE.md) — zero cost, zero lock-in.**
+Custom Markdown skills for autonomous ML research workflows. These skills orchestrate **cross-model collaboration** — Codex drives the research while an external LLM (via [Codex MCP](https://github.com/openai/codex)) acts as a critical reviewer. 🔀 **Also supports [alternative model combinations](#-alternative-model-combinations) (Kimi, LongCat, DeepSeek, etc.) — no Claude or OpenAI API required.** For example, [MiniMax-M2.7 + GLM-5 or GLM-5 + MiniMax-M2.7](docs/MiniMax-GLM-Configuration.md). 🤖 **[Codex CLI native](skills/skills-codex/)** — full skill set also available for OpenAI Codex. 🖱️ **[Cursor](docs/CURSOR_ADAPTATION.md)** — works in Cursor too. 🖥️ **[Trae](docs/TRAE_ARIS_RUNBOOK_EN.md)** — ByteDance AI IDE. 🚀 **[Antigravity](docs/ANTIGRAVITY_ADAPTATION.md)** — Google's agent-first IDE. 🆓 **[Free tier via ModelScope](docs/MODELSCOPE_GUIDE.md) — zero cost, zero lock-in.**
 
-> 💭 **Why not self-play with a single model?** Using Claude Code subagents or agent teams for both execution and review is technically possible, but tends to fall into **local minima** — the same model reviewing its own patterns creates blind spots.
+> 💭 **Why not self-play with a single model?** Using one model for both execution and review is technically possible, but tends to fall into **local minima** — the same model reviewing its own patterns creates blind spots.
 >
 > *Think of it like adversarial vs. stochastic bandits: a single model self-reviewing is the stochastic case (predictable reward noise), while cross-model review is adversarial (the reviewer actively probes weaknesses the executor didn't anticipate) — and adversarial bandits are fundamentally harder to game.*
 >
 > 💭 **Why two models, not more?** Two is the minimum needed to break self-play blind spots, and 2-player games converge to Nash equilibrium far more efficiently than n-player ones. Adding more reviewers increases API cost and coordination overhead with diminishing returns — the biggest gain is going from 1→2, not 2→4.
 >
-> Claude Code's strength is fast, fluid execution; Codex (GPT-5.4 xhigh) is slower but more deliberate and rigorous in critique. These complementary styles — **speed × rigor** — produce better outcomes than either model talking to itself.
+> Codex's strength is fast, fluid execution; GPT-5.4 xhigh is slower but more deliberate and rigorous in critique. These complementary styles — **speed × rigor** — produce better outcomes than either model talking to itself.
 >
 > 🧿 **Want the strongest possible reviewer?** Add `— reviewer: oracle-pro` to any skill to route reviews through **GPT-5.4 Pro** via [Oracle MCP](https://github.com/steipete/oracle). Pro-level reasoning for proof verification, experiment auditing, and final stress tests. Works with API key or free browser mode. [Setup →](#-optional-gpt-54-pro-via-oracle)
 
 ## 🎯 More Than Just a Prompt
 
 > These are full pipelines — you can also use each workflow independently. Already have an idea? Skip to Workflow 1.5. Have results? Jump to Workflow 3. Got reviews? Jump to Workflow 4. Want persistent memory? Enable [Research Wiki](#-research-wiki--persistent-research-memory). See [Quick Start](#-quick-start) for all commands and [Workflows](#-workflows) for the full breakdown.
+
+**🏭 YOLO mode** — Mac orchestration, Windows native training, ClearML visibility:
+
+```
+/yolo-pipeline "YOLO defect detection" — data: C:\datasets\defect\data.yaml, train target: windows-native, tracker: clearml
+```
+
+ARIS starts with data health checks and YOLO11 baselines before proposing modules or loss changes. GitHub private repos sync code, configs, and summaries only; raw images, large weights, and ClearML caches stay out of Git. Linux, Vast/Modal cloud GPU, patent, grant, robotics, posters, slides, OpenClaw/Cursor/Antigravity, and Zotero/Obsidian-style knowledge workflows remain available as optional layers.
 
 **Basic mode** — give ARIS a research direction, it handles everything:
 
@@ -184,24 +192,23 @@ Two outputs: `PASTE_READY.txt` (exact char count, paste to venue) + `REBUTTAL_DR
 ## 🚀 Quick Start
 
 ```bash
-# 1. Install skills
-git clone https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep.git
-mkdir -p ~/.claude/skills/    # create if it doesn't exist (new Claude Code versions)
-cp -r Auto-claude-code-research-in-sleep/skills/* ~/.claude/skills/
+# 1. Install the Codex skill set
+git clone https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep.git ~/aris_repo
+mkdir -p ~/.codex/skills
+cp -r ~/aris_repo/skills/skills-codex/* ~/.codex/skills/
 
 # 1b. Update skills (when upstream has new versions)
-cd Auto-claude-code-research-in-sleep && git pull
+cd ~/aris_repo && git pull
 bash tools/smart_update.sh          # dry-run: shows what's new/changed/safe
 bash tools/smart_update.sh --apply  # apply: adds new + updates safe ones
 
-# 2. Set up Codex MCP (for review skills)
-npm install -g @openai/codex
-codex setup                    # set model to gpt-5.4 when prompted
-claude mcp add codex -s user -- codex mcp-server
+# 2. Set up the reviewer bridge for Codex-first review workflows
+codex mcp add gemini-review --env GEMINI_REVIEW_BACKEND=api -- python3 ~/aris_repo/mcp-servers/gemini-review/server.py
 
-# 3. Use in Claude Code
-claude
+# 3. Use in Codex
+codex
 > /idea-discovery "your research direction"  # Workflow 1 — be specific! not "NLP" but "factorized gap in discrete diffusion LMs"
+> /yolo-pipeline "YOLO defect detection"  # YOLO: Windows training + ClearML + automatic experiments
 > /experiment-bridge                         # Workflow 1.5 — have a plan? implement + deploy + collect results
 > /auto-review-loop "your paper topic or scope"  # Workflow 2: review → fix → re-review overnight
 > /paper-writing "NARRATIVE_REPORT.md"       # Workflow 3: narrative → polished PDF
@@ -250,7 +257,7 @@ claude
 >
 > 🗑️ **Uninstall:** To remove ARIS skills without affecting your own personal skills:
 > ```bash
-> cd Auto-claude-code-research-in-sleep && ls skills/ | xargs -I{} rm -rf ~/.claude/skills/{}
+> cd ~/aris_repo && ls skills/skills-codex/ | xargs -I{} rm -rf ~/.codex/skills/{}
 > ```
 
 > **Tip:** All pipeline behaviors are configurable via inline overrides — append `— key: value` to any command:
@@ -263,7 +270,7 @@ claude
 > | `arxiv download` | `false` | Download top relevant arXiv PDFs during literature survey. When `false`, only fetches metadata (title, abstract, authors) |
 > | `DBLP_BIBTEX` | `true` | Fetch real BibTeX from [DBLP](https://dblp.org)/[CrossRef](https://www.crossref.org) instead of LLM-generated entries. Eliminates hallucinated citations. Zero install |
 > | `code review` | `true` | GPT-5.4 xhigh reviews experiment code before GPU deployment. Set `false` to skip |
-> | `wandb` | `false` | Auto-add W&B logging to experiment scripts. Set `true` + configure `wandb_project` in CLAUDE.md. `/monitor-experiment` pulls training curves from W&B |
+> | `wandb` | `false` | Auto-add W&B logging to experiment scripts. Set `true` + configure `wandb_project` in AGENTS.md. `/monitor-experiment` pulls training curves from W&B |
 > | `illustration` | `gemini` | AI illustration in Workflow 3: `gemini` (default, needs `GEMINI_API_KEY`), `mermaid` (free), or `false` (skip) |
 > | `venue` | `ICLR` | Target venue: `ICLR`, `NeurIPS`, `ICML`, `CVPR`, `ACL`, `AAAI`, `ACM`. Determines LaTeX style file and page limit |
 > | `base repo` | `false` | GitHub repo URL to clone as base codebase (e.g., `— base repo: https://github.com/org/project`). No code? Build on top of an open-source project |
@@ -292,7 +299,7 @@ claude
 
 > **Important:** Codex MCP uses the model from `~/.codex/config.toml`, not from skill files. Make sure it says `model = "gpt-5.4"` (recommended). Other options: `gpt-5.3-codex`, `gpt-5.2-codex`, `o3`. Run `codex setup` or edit the file directly.
 
-> **Want Codex to execute but Claude Code to review?** See [`docs/CODEX_CLAUDE_REVIEW_GUIDE.md`](docs/CODEX_CLAUDE_REVIEW_GUIDE.md). That path installs the base `skills/skills-codex/*`, then overlays `skills/skills-codex-claude-review/*`, and routes review-heavy skills through the local `claude-review` MCP bridge.
+> **Legacy: want Codex to execute but Claude Code to review?** See [`docs/CODEX_CLAUDE_REVIEW_GUIDE.md`](docs/CODEX_CLAUDE_REVIEW_GUIDE.md). That path installs the base `skills/skills-codex/*`, then overlays `skills/skills-codex-claude-review/*`, and routes review-heavy skills through the local `claude-review` MCP bridge.
 
 > **Want Codex to execute but Gemini to review locally?** See [`docs/CODEX_GEMINI_REVIEW_GUIDE.md`](docs/CODEX_GEMINI_REVIEW_GUIDE.md) and [CN](docs/CODEX_GEMINI_REVIEW_GUIDE_CN.md). That path installs the base `skills/skills-codex/*`, then overlays `skills/skills-codex-gemini-review/*`, and routes the reviewer-aware predefined skills through the local `gemini-review` MCP bridge using direct Gemini API by default.
 
@@ -309,14 +316,14 @@ See [full setup guide](#%EF%B8%8F-setup) for details and [alternative model comb
 
 ## ✨ Features
 
-- 📊 **31 composable skills** — mix and match, or chain into full pipelines (`/idea-discovery`, `/auto-review-loop`, `/paper-writing`, `/research-pipeline`)
+- 📊 **Composable skills** — mix and match, or chain into full pipelines (`/yolo-pipeline`, `/idea-discovery`, `/auto-review-loop`, `/paper-writing`, `/research-pipeline`)
 - 🔍 **Literature & novelty** — multi-source paper search (**[Zotero](#-zotero-integration-optional)** + **[Obsidian](#-obsidian-integration-optional)** + **local PDFs** + arXiv/Scholar) + cross-model novelty verification
 - 💡 **Idea discovery** — literature survey → brainstorm 8-12 ideas → novelty check → GPU pilot experiments → ranked report
 - 🔄 **Auto review loop** — 4-round autonomous review, 5/10 → 7.5/10 overnight with 20+ GPU experiments
 - 📝 **Paper writing** — narrative → outline → figures → LaTeX → PDF → auto-review (4/10 → 8.5/10), one command. Anti-hallucination citations via [DBLP](https://dblp.org)/[CrossRef](https://www.crossref.org)
-- 🤖 **Cross-model collaboration** — Claude Code executes, GPT-5.4 xhigh reviews. Adversarial, not self-play. Optional upgrade: `— reviewer: oracle-pro` for **GPT-5.4 Pro** (strongest reasoning) via [Oracle](https://github.com/steipete/oracle)
+- 🤖 **Cross-model collaboration** — Codex executes, GPT-5.4 xhigh reviews. Adversarial, not self-play. Optional upgrade: `— reviewer: oracle-pro` for **GPT-5.4 Pro** (strongest reasoning) via [Oracle](https://github.com/steipete/oracle)
 - 📝 **Peer review** — review others' papers as a conference reviewer, with structured scoring and meta-review
-- 🖥️ **Review-driven experiments** — when GPT-5.4 says "run an ablation", Claude Code automatically writes the script, rsyncs to your GPU server, launches in screen, collects results, and folds them back into the paper. Just configure your server in `CLAUDE.md` ([setup guide](#%EF%B8%8F-gpu-server-setup-for-auto-experiments)). **No GPU?** Use `gpu: vast` to rent one from [Vast.ai](https://vast.ai) on demand
+- 🖥️ **Review-driven experiments** — when GPT-5.4 says "run an ablation", Codex automatically writes the script, rsyncs to your GPU server, launches in screen, collects results, and folds them back into the paper. Just configure your server in `AGENTS.md` ([setup guide](#%EF%B8%8F-gpu-server-setup-for-auto-experiments)). **No GPU?** Use `gpu: vast` to rent one from [Vast.ai](https://vast.ai) on demand
 - 🔀 **Flexible models** — default Claude × GPT-5.4, also supports [GLM, MiniMax, Kimi, LongCat, DeepSeek, etc.](#-alternative-model-combinations) — no Claude or OpenAI API required
 - 🛑 **Human-in-the-loop** — configurable checkpoints at key decisions. `AUTO_PROCEED=true` for full autopilot, `false` to approve each step
 - 📱 **[Feishu/Lark notifications](#-feishulark-integration-optional)** — three modes: **off (default, strongly recommended for most users)**, push-only (webhook, mobile alerts), interactive (approve/reject from Feishu). Zero impact when unconfigured
@@ -328,7 +335,7 @@ See [full setup guide](#%EF%B8%8F-setup) for details and [alternative model comb
 
   <img src="assets/feishu_push.png" width="700" />
 
-  **Interactive** — private chat with Claude Code (approve/reject, custom instructions):
+  **Interactive** — private chat with Codex (approve/reject, custom instructions):
 
   <img src="assets/feishu_interactive.jpg" width="700" />
 
@@ -416,7 +423,7 @@ Domain-specific skills and external projects contributed by the community. PRs w
 | 🖱️ [Cursor Adaptation Guide](docs/CURSOR_ADAPTATION.md) | General | Use ARIS skills in [Cursor](https://www.cursor.com/) — `@`-reference skills, MCP setup, workflow mapping, state file recovery across sessions |
 | 🖥️ [Trae Adaptation Guide](docs/TRAE_ARIS_RUNBOOK_EN.md) | General | Use ARIS skills in [Trae](https://www.trae.ai/) (ByteDance AI IDE) — EN + CN guides |
 | 🎨 [`paper-illustration`](skills/paper-illustration/SKILL.md) | General | AI-generated architecture diagrams via Gemini. Built on [PaperBanana](https://github.com/dwzhu-pku/PaperBanana). Integrated into Workflow 3 |
-| 🤖 [`skills-codex`](skills/skills-codex/) | General | Codex CLI sync pack for the main research skills, now including `training-check`, `result-to-claim`, `ablation-planner`, `rebuttal`, plus the `shared-references/` support directory |
+| 🤖 [`skills-codex`](skills/skills-codex/) | General | Codex CLI sync pack for the main research skills, now including `yolo-pipeline`, `training-check`, `result-to-claim`, `ablation-planner`, `rebuttal`, plus the `shared-references/` support directory |
 | 🎛️ [auto-hparam-tuning](https://github.com/zxh0916/auto-hparam-tuning) | General | Automatic hyperparameter tuning — AI agent reads project, plans strategy, runs experiments, analyzes TensorBoard, learns from results. Hydra-based |
 | 🔁 [Codex+Claude Review Bridge](docs/CODEX_CLAUDE_REVIEW_GUIDE.md) | General | Codex executes + Claude reviews via local `claude-review` MCP bridge with async polling |
 | 📚 [paper-to-course](https://github.com/KaguraTart/paper-to-course) | Education | Convert research papers (PDF/LaTeX) into interactive six-module HTML courses with formula breakdowns, literature timelines, quizzes, and glossary tooltips — single bundled file, no server needed |
@@ -583,7 +590,7 @@ Already have an experiment plan (from Workflow 1 or your own)? `/experiment-brid
 
 > **"Review my paper, fix what's wrong, repeat until it's good."**
 >
-> GPT-5.4 reviews → identifies weaknesses → suggests experiments → Claude Code writes scripts, deploys to GPU, monitors results, rewrites the paper — all while you sleep. Just add your [GPU server config](#%EF%B8%8F-gpu-server-setup-for-auto-experiments) to `CLAUDE.md`.
+> GPT-5.4 reviews → identifies weaknesses → suggests experiments → Codex writes scripts, deploys to GPU, monitors results, rewrites the paper — all while you sleep. Just add your [GPU server config](#%EF%B8%8F-gpu-server-setup-for-auto-experiments) to `AGENTS.md`.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -1200,14 +1207,14 @@ bash ~/aris_repo/tools/install_aris.sh ~/your-project --from-old --migrate-copy 
 ```bash
 mkdir -p ~/your-project/.claude/skills
 bash ~/aris_repo/tools/smart_update.sh --project ~/your-project --apply
-# Default --target-subdir is .claude/skills (flat), which is what Claude Code expects.
-# (The old --target-subdir .claude/skills/aris is now deprecated — see migration block above.)
+# Default --target-subdir is .agents/skills (flat), which is what Codex expects.
+# (The old --target-subdir .agents/skills/aris is now deprecated — see migration block above.)
 ```
 
 **Global install (one copy in your home dir, available to every project):**
 ```bash
-mkdir -p ~/.claude/skills
-cp -r ~/aris_repo/skills/* ~/.claude/skills/
+mkdir -p ~/.codex/skills
+cp -r ~/aris_repo/skills/skills-codex/* ~/.codex/skills/
 # Update with: bash tools/smart_update.sh --apply
 ```
 
@@ -1215,7 +1222,7 @@ cp -r ~/aris_repo/skills/* ~/.claude/skills/
 
 </details>
 
-> 💡 **New Claude Code versions** may not auto-create `~/.claude/skills/`. If using global install, create it first: `mkdir -p ~/.claude/skills/`. The symlink installer handles directory creation automatically.
+> 💡 **Codex** may not auto-create `~/.codex/skills/`. If using global install, create it first: `mkdir -p ~/.codex/skills/`. The symlink installer handles directory creation automatically.
 
 <details>
 <summary><b>Optional: Codex Plugin for Code Review</b></summary>
@@ -1247,7 +1254,7 @@ All plugin features are **optional** — if not installed, ARIS falls back to Cl
 ### Update Skills
 
 ```bash
-cd Auto-claude-code-research-in-sleep
+cd ~/aris_repo
 git pull
 
 # 🧠 Smart update (recommended) — analyzes what's safe to update
@@ -1255,9 +1262,9 @@ bash tools/smart_update.sh          # dry-run: shows what would change
 bash tools/smart_update.sh --apply  # apply: adds new + updates safe ones
 
 # Manual options (if you prefer):
-# cp -r skills/* ~/.claude/skills/       # Option A: overwrite all
-# cp -rn skills/* ~/.claude/skills/      # Option B: only add new, keep yours
-# cp -r skills/experiment-bridge ~/.claude/skills/  # Option C: specific skill
+# cp -r skills/skills-codex/* ~/.codex/skills/       # Option A: overwrite all
+# cp -rn skills/skills-codex/* ~/.codex/skills/      # Option B: only add new, keep yours
+# cp -r skills/skills-codex/experiment-bridge ~/.codex/skills/  # Option C: specific skill
 ```
 
 > 💡 **Smart update** compares your local skills with upstream, detects personal customizations (server paths, API keys, etc.), and only updates skills that are safe to replace. Skills with your personal info are flagged for manual review.
@@ -1314,9 +1321,9 @@ To run the auto-review loop without clicking permission prompts, add to `.claude
 <details>
 <summary><h3>🖥️ GPU Server Setup (For Auto-Experiments)</h3></summary>
 
-When GPT-5.4 says "run an ablation study" or "add a baseline comparison", Claude Code automatically writes the experiment script and deploys it to your GPU server. For this to work, Claude Code needs to know your server environment.
+When GPT-5.4 says "run an ablation study" or "add a baseline comparison", Codex automatically writes the experiment script and deploys it to your GPU server. For this to work, Codex needs to know your server environment.
 
-Three GPU modes are supported — pick one and add it to your project's `CLAUDE.md`:
+Three GPU modes are supported — pick one and add it to your project's `AGENTS.md`:
 
 #### Option A: Remote SSH Server (`gpu: remote`)
 
@@ -1331,11 +1338,11 @@ Three GPU modes are supported — pick one and add it to your project's `CLAUDE.
 - Use `screen` for background jobs: `screen -dmS exp0 bash -c '...'`
 ```
 
-Claude Code reads this and knows how to SSH in, activate the environment, and launch experiments. GPT-5.4 (the reviewer) only decides **what** experiments to run — Claude Code figures out **how** based on your `CLAUDE.md`.
+Codex reads this and knows how to SSH in, activate the environment, and launch experiments. GPT-5.4 (the reviewer) only decides **what** experiments to run — Codex figures out **how** based on your `AGENTS.md`.
 
 #### Option B: Local GPU (`gpu: local`)
 
-If you are already on the GPU server, you can add the following to your `CLAUDE.md`:
+If you are already on the GPU server, you can add the following to your `AGENTS.md`:
 ```markdown
 ## GPU Environment
 - gpu: local
@@ -1736,7 +1743,7 @@ Override inline: `/idea-discovery "topic" — pilot budget: 4h per idea, sources
 | `AUTO_DEPLOY` | true | Automatically deploy experiments after implementation + review. Set `false` to manually inspect |
 | `SANITY_FIRST` | true | Run smallest experiment first to catch setup bugs before full deployment |
 | `MAX_PARALLEL_RUNS` | 4 | Maximum experiments to deploy in parallel (limited by available GPUs) |
-| `WANDB` | false | Auto-add W&B logging. Requires `wandb_project` in CLAUDE.md |
+| `WANDB` | false | Auto-add W&B logging. Requires `wandb_project` in AGENTS.md |
 | `BASE_REPO` | false | GitHub repo URL to clone as base codebase for experiments |
 
 Override inline: `/experiment-bridge — base repo: https://github.com/org/project`
@@ -1778,11 +1785,11 @@ Override inline: `/paper-write — target venue: NeurIPS, illustration: mermaid`
 
 Don't have Claude / OpenAI API access? You can swap in other models — same cross-model architecture, different providers.
 
-> ⭐ **We strongly recommend Claude + GPT-5.4 (default setup).** It's the most tested and reliable combination. Alternative setups work but may require prompt tuning.
+> ⭐ **We strongly recommend Codex + GPT-5.4 (default setup).** It's the most tested and reliable combination. Alternative setups work but may require prompt tuning.
 
 | | Executor | Reviewer | Need Claude API? | Need OpenAI API? | Guide |
 |---|----------|----------|:---:|:---:|-------|
-| **Default** ⭐ | Claude Opus/Sonnet | GPT-5.4 (Codex MCP) | Yes | Yes | [Quick Start](#-quick-start) |
+| **Default** ⭐ | Codex CLI | GPT-5.4 (Codex MCP) | No | Yes | [Quick Start](#-quick-start) |
 | **Alt A** | GLM-5 (Z.ai) | GPT-5.4 (Codex MCP) | No | Yes | [Setup below](#alt-a-glm--gpt) |
 | **Alt B** | GLM-5 (Z.ai) | MiniMax-M2.7 | No | No | [MINIMAX_MCP_GUIDE](docs/MINIMAX_MCP_GUIDE.md) |
 | **Alt C** | Any CC-compatible | Any OpenAI-compatible | No | No | [LLM_API_MIX_MATCH_GUIDE](docs/LLM_API_MIX_MATCH_GUIDE.md) |
@@ -1845,11 +1852,11 @@ Example combinations: GLM + DeepSeek, Kimi + MiniMax, Claude + DeepSeek, LongCat
 ```bash
 git clone https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep.git
 cd Auto-claude-code-research-in-sleep
-cp -r skills/* ~/.claude/skills/
-claude
+cp -r skills/skills-codex/* ~/.codex/skills/
+codex
 ```
 
-> **⚠️ For non-Claude executors (GLM, Kimi, etc.):** Let the model read through the project once to ensure skills are correctly parsed. This is especially important if you've [rewritten skills](#-alternative-model-combinations) to use a different reviewer MCP (e.g., `mcp__llm-chat__chat` instead of `mcp__codex__codex`) — the new executor needs to understand the changed tool call patterns:
+> **⚠️ For non-Codex executors (GLM, Kimi, etc.):** Let the model read through the project once to ensure skills are correctly parsed. This is especially important if you've [rewritten skills](#-alternative-model-combinations) to use a different reviewer MCP (e.g., `mcp__llm-chat__chat` instead of `mcp__gemini-review__review`) — the new executor needs to understand the changed tool call patterns:
 >
 > ```
 > Read through this project and verify all skills are working:
@@ -1876,7 +1883,7 @@ claude
 - [x] **Idea Discovery pipeline** — `/idea-discovery` orchestrates research-lit → idea-creator → novelty-check → research-review in one command, with pilot experiments on GPU
 - [x] **Full research pipeline** — `/research-pipeline` chains Workflow 1 (idea discovery) → implementation → Workflow 2 (auto-review-loop) end-to-end
 - [x] **Peer review skill** — `/peer-review` for reviewing others' papers as a conference reviewer, with GPT-5.4 meta-review (planned; currently use `/research-review` with a paper PDF)
-- [x] **Cross-model collaboration** — Claude Code (executor) × Codex GPT-5.4 xhigh (reviewer) architecture, avoiding single-model self-play local minima
+- [x] **Cross-model collaboration** — Codex (executor) × GPT-5.4 xhigh (reviewer) architecture, avoiding single-model self-play local minima
 - [x] **Feishu/Lark integration** — three modes (off/push/interactive), configurable via `~/.claude/feishu.json`. Push-only needs just a webhook URL; interactive uses [feishu-claude-code](https://github.com/joewongjc/feishu-claude-code). Off by default — zero impact on existing workflows. See [setup guide](#-feishulark-integration-optional)
 - [x] **Zotero MCP integration** — `/research-lit` searches Zotero collections, reads annotations/highlights, exports BibTeX. Recommended: [zotero-mcp](https://github.com/54yyyu/zotero-mcp) (1.8k⭐). See [setup guide](#-zotero-integration-optional)
 - [x] **Obsidian integration** — `/research-lit` searches Obsidian vault for research notes, tagged references, wikilinks. Recommended: [mcpvault](https://github.com/bitbonsai/mcpvault) (760⭐) + [obsidian-skills](https://github.com/kepano/obsidian-skills) (13.6k⭐). See [setup guide](#-obsidian-integration-optional)

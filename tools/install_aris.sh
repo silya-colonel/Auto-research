@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # install_aris.sh — Project-local ARIS skill installation (flat per-skill symlinks).
 #
-# Each ARIS skill is symlinked into `<project>/.claude/skills/<skill-name>` so
-# Claude Code's slash-command discovery (which only scans one level deep) finds it.
+# Each ARIS skill is symlinked into either `<project>/.agents/skills/<skill-name>`
+# (Codex) or `<project>/.claude/skills/<skill-name>` (Claude) so the agent's
+# slash-command discovery can find it.
 # A versioned manifest at `<project>/.aris/installed-skills.txt` tracks every
 # entry this installer created — uninstall and reconcile read from the manifest
 # and never touch user-owned skills with the same name.
@@ -19,13 +20,14 @@
 #   --aris-repo PATH       override aris-repo discovery
 #   --dry-run              show plan, no writes
 #   --quiet                no prompts; abort on any condition that would prompt
-#   --no-doc               skip CLAUDE.md update
+#   --platform PLATFORM    auto | codex | claude (default: auto)
+#   --no-doc               skip AGENTS.md / CLAUDE.md update
 #   --adopt-existing NAME  adopt a non-managed symlink that already points to
 #                          the correct upstream target (repeatable)
 #   --replace-link NAME    replace an upstream-internal symlink that points to
 #                          a DIFFERENT entry than expected (repeatable)
 #   --from-old             trigger migration from legacy nested install
-#                          (.claude/skills/aris/)
+#                          (legacy nested install under the current platform)
 #   --migrate-copy STRAT   for legacy COPY install: STRAT = keep-user | prefer-upstream
 #                          (default: refuse)
 #   --clear-stale-lock     remove stale lock dir from a crashed prior run
@@ -55,8 +57,6 @@ MANIFEST_NAME="installed-skills.txt"
 MANIFEST_PREV_NAME="installed-skills.txt.prev"
 ARIS_DIR_NAME=".aris"
 LOCK_DIR_NAME=".install.lock.d"
-SKILLS_REL=".claude/skills"
-DOC_FILE_NAME="CLAUDE.md"
 BLOCK_BEGIN="<!-- ARIS:BEGIN -->"
 BLOCK_END="<!-- ARIS:END -->"
 SAFE_NAME_REGEX='^[A-Za-z0-9][A-Za-z0-9._-]*$'
@@ -67,6 +67,7 @@ EXCLUDE_TOP_NAMES=("skills-codex" "skills-codex.bak")  # not skills, not symlink
 PROJECT_PATH=""
 ARIS_REPO_OVERRIDE=""
 ACTION="auto"        # auto | reconcile | uninstall
+PLATFORM="auto"      # auto | codex | claude
 DRY_RUN=false
 QUIET=false
 NO_DOC=false
@@ -91,10 +92,7 @@ while [[ $# -gt 0 ]]; do
         --clear-stale-lock)  CLEAR_STALE_LOCK=true; shift ;;
         --adopt-existing)    ADOPT_NAMES+=("${2:?--adopt-existing requires NAME}"); shift 2 ;;
         --replace-link)      REPLACE_LINK_NAMES+=("${2:?--replace-link requires NAME}"); shift 2 ;;
-        --platform)
-            echo "Error: --platform is removed. ARIS now only supports Claude Code (.claude/skills/)." >&2
-            echo "       Codex CLI users: see docs for the manual codex setup." >&2
-            exit 2 ;;
+        --platform)          PLATFORM="${2:?--platform requires auto|codex|claude}"; shift 2 ;;
         --force)
             echo "Error: --force is removed. Use the granular flags:" >&2
             echo "       --adopt-existing NAME (for non-managed symlinks pointing to correct upstream)" >&2
@@ -112,6 +110,9 @@ done
 
 if [[ -n "$MIGRATE_COPY" && "$MIGRATE_COPY" != "keep-user" && "$MIGRATE_COPY" != "prefer-upstream" ]]; then
     echo "Error: --migrate-copy must be keep-user or prefer-upstream (got: $MIGRATE_COPY)" >&2; exit 2
+fi
+if [[ "$PLATFORM" != "auto" && "$PLATFORM" != "codex" && "$PLATFORM" != "claude" ]]; then
+    echo "Error: --platform must be auto, codex, or claude (got: $PLATFORM)" >&2; exit 2
 fi
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -170,13 +171,29 @@ resolve_aris_repo() {
     die "cannot find ARIS repo. Use --aris-repo PATH or set ARIS_REPO env var."
 }
 
+detect_platform() {
+    local p="$1"
+    case "$p" in
+        codex|claude) echo "$p"; return ;;
+        auto) ;;
+        *) die "invalid --platform value: $p (expected auto|codex|claude)" ;;
+    esac
+    if [[ -f "$PROJECT_PATH/AGENTS.md" || -d "$PROJECT_PATH/.agents" ]]; then
+        echo "codex"; return
+    fi
+    if [[ -f "$PROJECT_PATH/CLAUDE.md" || -d "$PROJECT_PATH/.claude" ]]; then
+        echo "claude"; return
+    fi
+    echo "codex"
+}
+
 # Build the upstream inventory: array of "kind|name" entries
 # Skills = top-level dirs in <aris-repo>/skills/ containing SKILL.md
 # Support = explicitly listed support directories (shared-references)
 # Rejects: anything in EXCLUDE_TOP_NAMES, names failing slug regex, symlinks to outside aris-repo (S10)
 build_upstream_inventory() {
     local repo="$1"
-    local skills_dir="$repo/skills"
+    local skills_dir="$2"
     local entries=() name kind src
     # skills (with SKILL.md)
     for d in "$skills_dir"/*/; do
@@ -238,7 +255,17 @@ PROJECT_PATH="${PROJECT_PATH:-$(pwd)}"
 [[ -d "$PROJECT_PATH" ]] || die "project path does not exist: $PROJECT_PATH"
 PROJECT_PATH="$(abs_path "$PROJECT_PATH")"
 ARIS_REPO="$(resolve_aris_repo)"
-SKILLS_DIR_ABS="$ARIS_REPO/skills"
+PLATFORM="$(detect_platform "$PLATFORM")"
+if [[ "$PLATFORM" == "codex" ]]; then
+    SKILLS_SOURCE_REL="skills/skills-codex"
+    SKILLS_REL=".agents/skills"
+    DOC_FILE_NAME="AGENTS.md"
+else
+    SKILLS_SOURCE_REL="skills"
+    SKILLS_REL=".claude/skills"
+    DOC_FILE_NAME="CLAUDE.md"
+fi
+SKILLS_DIR_ABS="$ARIS_REPO/$SKILLS_SOURCE_REL"
 PROJECT_SKILLS_DIR="$PROJECT_PATH/$SKILLS_REL"
 PROJECT_ARIS_DIR="$PROJECT_PATH/$ARIS_DIR_NAME"
 MANIFEST_PATH="$PROJECT_ARIS_DIR/$MANIFEST_NAME"
@@ -246,11 +273,11 @@ MANIFEST_PREV="$PROJECT_ARIS_DIR/$MANIFEST_PREV_NAME"
 LOCK_DIR="$PROJECT_ARIS_DIR/$LOCK_DIR_NAME"
 DOC_FILE="$PROJECT_PATH/$DOC_FILE_NAME"
 
-# ─── S9: refuse if .aris / .claude / .claude/skills is itself a symlink ───────
-# (.aris and .claude/skills may not exist yet — only check if present.)
+# ─── S9: refuse if .aris / .agents / .claude / target skills dir is itself a symlink ───────
+# (.aris and the skills dir may not exist yet — only check if present.)
 check_no_symlinked_parents() {
     local p
-    for p in "$PROJECT_ARIS_DIR" "$PROJECT_PATH/.claude" "$PROJECT_SKILLS_DIR"; do
+    for p in "$PROJECT_ARIS_DIR" "$PROJECT_PATH/.agents" "$PROJECT_PATH/.claude" "$PROJECT_SKILLS_DIR"; do
         if is_symlink "$p"; then
             die "S9: $p is a symlink — refusing to install (would mutate symlink target)"
         fi
@@ -440,7 +467,7 @@ print_plan() {
 #   2. Apply mutations with revalidation (lstat + readlink) right before each
 #   3. Copy current manifest to .prev.tmp, rename to .prev
 #   4. Rename new manifest temp over current manifest (LAST commit point)
-#   5. CLAUDE.md update (best-effort, compare-and-swap, never fails install)
+#   5. Agent doc update (best-effort, compare-and-swap, never fails install)
 
 write_manifest_tmp() {
     local plan="$1" out="$2"
@@ -538,10 +565,10 @@ commit_manifest() {
     mv -f "$manifest_tmp" "$MANIFEST_PATH"
 }
 
-# ─── CLAUDE.md best-effort update (compare-and-swap) ──────────────────────────
-update_claude_doc() {
+# ─── Agent doc best-effort update (compare-and-swap) ──────────────────────────
+update_agent_doc() {
     local installed_names_file="$1"
-    [[ -f "$DOC_FILE" ]] || { log "  (skip CLAUDE.md: file not present)"; return 0; }
+    [[ -f "$DOC_FILE" ]] || { log "  (skip $DOC_FILE_NAME: file not present)"; return 0; }
     if $NO_DOC; then return 0; fi
 
     local original new_block tmp
@@ -567,12 +594,12 @@ text = pathlib.Path(path).read_text()
 pattern = re.compile(re.escape(begin) + r".*?" + re.escape(end), re.DOTALL)
 matches = pattern.findall(text)
 if len(matches) > 1:
-    sys.stderr.write("ARIS:WARN multiple ARIS blocks found in CLAUDE.md; skipping update\n")
+    sys.stderr.write("ARIS:WARN multiple ARIS blocks found in agent doc; skipping update\n")
     sys.stdout.write(text)
 else:
     sys.stdout.write(pattern.sub(body, text))
 PYEOF
-        )" || { warn "CLAUDE.md update failed (best-effort, continuing)"; return 0; }
+        )" || { warn "$DOC_FILE_NAME update failed (best-effort, continuing)"; return 0; }
     else
         new_content="$original"
         [[ -n "$original" ]] && new_content="${new_content}"$'\n'
@@ -580,17 +607,17 @@ PYEOF
     fi
 
     # Compare-and-swap: re-read file, only commit if unchanged from snapshot
-    if $DRY_RUN; then log "  (dry-run) would update CLAUDE.md ARIS block"; return 0; fi
+    if $DRY_RUN; then log "  (dry-run) would update $DOC_FILE_NAME ARIS block"; return 0; fi
     tmp="$DOC_FILE.aris-tmp.$$"
     printf '%s' "$new_content" > "$tmp"
     local current; current="$(cat "$DOC_FILE")"
     if [[ "$current" != "$original" ]]; then
         rm -f "$tmp"
-        warn "CLAUDE.md changed during install — skipping doc update (rerun to retry)"
+        warn "$DOC_FILE_NAME changed during install — skipping doc update (rerun to retry)"
         return 0
     fi
     mv -f "$tmp" "$DOC_FILE"
-    log "  ✓ updated CLAUDE.md (ARIS managed block)"
+    log "  ✓ updated $DOC_FILE_NAME (ARIS managed block)"
 }
 
 # ─── Uninstall ────────────────────────────────────────────────────────────────
@@ -667,7 +694,7 @@ fi
 
 # Build inventories
 UPSTREAM_FILE="$(mktemp -t aris-upstream.XXXX)"
-build_upstream_inventory "$ARIS_REPO" > "$UPSTREAM_FILE"
+build_upstream_inventory "$ARIS_REPO" "$SKILLS_DIR_ABS" > "$UPSTREAM_FILE"
 [[ -s "$UPSTREAM_FILE" ]] || die "upstream inventory empty (broken aris-repo?)"
 
 MANIFEST_DATA="$(mktemp -t aris-manifest.XXXX)"
@@ -726,10 +753,10 @@ if [[ "$LEGACY_KIND" == "real_dir" && "$MIGRATE_COPY" == "prefer-upstream" ]]; t
     archive_legacy_copy
 fi
 
-# CLAUDE.md best-effort
+# Agent doc best-effort
 INSTALLED_NAMES="$(mktemp -t aris-names.XXXX)"
 awk -F'|' '$1=="REUSE"||$1=="ADOPT"||$1=="CREATE"||$1=="UPDATE_TARGET"{print $3}' "$PLAN_FILE" > "$INSTALLED_NAMES"
-update_claude_doc "$INSTALLED_NAMES"
+update_agent_doc "$INSTALLED_NAMES"
 rm -f "$INSTALLED_NAMES"
 
 # Verify

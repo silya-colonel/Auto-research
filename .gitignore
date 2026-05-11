@@ -17,12 +17,41 @@ __pycache__/
 # Environment
 .env
 
-# Claude Code local config — contains API keys and personal settings
+# Claude Code / Codex local config
 .claude/
+.agents/
 
-# Patent output — contains confidential invention details, do not commit
+# ── YOLO 项目: 不入 Git ──
+# 数据集
+datasets/
+data/
+*.zip
+*.tar.gz
+
+# 训练输出
+runs/
+
+# 模型权重
+*.pt
+*.pth
+*.onnx
+*.engine
+*.tflite
+*.mlpackage
+
+# ClearML
+.clearml/
+clearml.conf
+.aris/
+
+# OMC runtime
+.omc/
+
+# ARIS install lock
+.aris/
+
+# 专利输出 (含保密内容)
 patent/
-# Allow patent framework files (skills, templates, shared references)
 !skills/patent-pipeline/
 !skills/prior-art-search/
 !skills/patent-novelty-check/
@@ -41,6 +70,3 @@ patent/
 !templates/INVENTION_BRIEF_TEMPLATE.md
 !templates/PATENT_CLAIMS_TEMPLATE.md
 !templates/PATENT_SPECIFICATION_TEMPLATE.md
-
-# OMC runtime state
-.omc/

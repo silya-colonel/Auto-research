@@ -2,17 +2,18 @@
 
 ## 1. 这个包是什么
 
-这是一个面向 **Codex** 的技能包目录，当前版本已经与主线 `skills/` 对齐：
+这是一个面向 **Codex** 的技能包目录，当前版本是主线 `skills/` 的 Codex 核心同步包：
 
 - 保留主线科研技能的同名同步集
 - 同步包含 `training-check`、`ablation-planner`、`result-to-claim`、`rebuttal`
+- 新增 `yolo-pipeline`，用于 Windows 原生 Ultralytics YOLO + ClearML 缺陷检测流程
 - 同步包含 `mermaid-diagram`
 - 附带 `shared-references/`，但它**不计入 skill 数量**
 
 数量对比：
 
-- 主线 `skills/` 当前技能数：`39`
-- 本包技能数：`39`
+- 主线 `skills/` 当前技能数：`68`
+- 本包技能数：`41`
 - 另附支持目录：`shared-references/`
 
 本包路径结构是：
