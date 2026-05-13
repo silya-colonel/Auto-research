@@ -18,23 +18,6 @@ Monitor: $ARGUMENTS
 ssh <server> "screen -ls"
 ```
 
-**Vast.ai instance** (read `ssh_host`, `ssh_port` from `vast-instances.json`):
-```bash
-ssh -p <PORT> root@<HOST> "screen -ls"
-```
-
-Also check vast.ai instance status:
-```bash
-vastai show instances
-```
-
-**Modal** (when `gpu: modal` in CLAUDE.md):
-```bash
-modal app list         # List running/recent apps
-modal app logs <app>   # Stream logs from a running app
-```
-Modal apps auto-terminate when done — if it's not in the list, it already finished. Check results via `modal volume ls <volume>` or local output.
-
 ### Step 2: Collect Output from Each Screen
 For each screen session, capture the last N lines:
 ```bash

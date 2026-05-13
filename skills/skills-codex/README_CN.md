@@ -6,7 +6,7 @@
 
 - 保留主线科研技能的同名同步集
 - 同步包含 `training-check`、`ablation-planner`、`result-to-claim`、`rebuttal`
-- 新增 `yolo-pipeline`，用于 Windows 原生 Ultralytics YOLO + ClearML 缺陷检测流程
+- 新增 `yolo-pipeline`，用于 Linux 原生 Ultralytics YOLO 缺陷检测流程
 - 同步包含 `mermaid-diagram`
 - 附带 `shared-references/`，但它**不计入 skill 数量**
 

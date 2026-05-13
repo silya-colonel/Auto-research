@@ -5,7 +5,7 @@
 #   bash tools/init_yolo_project.sh <项目名> [选项]
 #
 # 选项:
-#   --server-type TYPE     linux-lab (默认) | cloud-gpu
+#   --server-type TYPE     linux-lab(默认) 或 windows
 #   --github-remote URL    GitHub私有仓库URL (可选，跳过则手动添加)
 #   --data-dir PATH        数据集本地路径 (Mac端，可选)
 #   --dry-run              只打印不执行
@@ -27,17 +27,17 @@ init_yolo_project.sh — Mac端一键创建YOLO缺陷检测项目
   bash tools/init_yolo_project.sh <项目名> [选项]
 
 选项:
-  --server-type TYPE     部署模式: linux-lab(默认,自有服务器) | cloud-gpu(租用云GPU)
+  --server-type TYPE     部署模式: linux-lab(默认) 或 windows
   --github-remote URL    GitHub私有仓库URL (git@github.com:user/repo.git)
   --data-dir PATH        本地数据集路径 (将生成data.yaml)
   --dry-run              只打印不执行
 
 示例:
-  # 自有服务器
+  # Linux 服务器
   bash tools/init_yolo_project.sh yolo-defect --github-remote git@github.com:silya/yolo-defect.git
 
-  # 云GPU
-  bash tools/init_yolo_project.sh yolo-defect --server-type cloud-gpu --github-remote git@github.com:silya/yolo-defect.git
+  # Windows 服务器
+  bash tools/init_yolo_project.sh yolo-defect --server-type windows --github-remote git@github.com:silya/yolo-defect.git
 HELP
     exit 0
 }
@@ -58,8 +58,8 @@ done
 
 [[ -z "$PROJECT_NAME" ]] && { echo "错误: 请指定项目名"; usage; }
 
-if [[ "$SERVER_TYPE" != "linux-lab" && "$SERVER_TYPE" != "cloud-gpu" ]]; then
-    echo "错误: --server-type 必须是 linux-lab 或 cloud-gpu"
+if [[ "$SERVER_TYPE" != "linux-lab" && "$SERVER_TYPE" != "windows" ]]; then
+    echo "错误: --server-type 必须是 linux-lab 或 windows"
     exit 2
 fi
 
@@ -124,7 +124,7 @@ copy_template() {
 }
 
 copy_template "AGENTS_TEMPLATE.md" "AGENTS.md"
-copy_template "train_yolo_clearml.py" "train_yolo_clearml.py"
+copy_template "train_yolo.py" "train_yolo.py"
 copy_template "YOLO_GITIGNORE_TEMPLATE.txt" ".gitignore"
 copy_template "YOLO_REQUIREMENTS_TEMPLATE.txt" "requirements.txt"
 copy_template "YOLO_EXPERIMENT_MANIFEST_TEMPLATE.md" "experiments/YOLO_EXPERIMENT_MANIFEST.md"
@@ -132,33 +132,20 @@ copy_template "YOLO_EXPERIMENT_MANIFEST_TEMPLATE.md" "experiments/YOLO_EXPERIMEN
 # 3. 生成服务器初始化脚本
 echo "→ 生成服务器端初始化脚本..."
 
-if [[ "$SERVER_TYPE" == "linux-lab" ]]; then
-    if $DRY_RUN; then
-        echo "  cp setup_linux_server.sh → $PROJECT_DIR/tools/"
-    else
-        cp "$ARIS_REPO/tools/setup_linux_server.sh" "$PROJECT_DIR/tools/"
-        chmod +x "$PROJECT_DIR/tools/setup_linux_server.sh"
-        echo "  ✓ tools/setup_linux_server.sh"
-    fi
+if $DRY_RUN; then
+    echo "  cp setup_linux_server.sh → $PROJECT_DIR/tools/"
+    echo "  cp setup_windows_server.ps1 → $PROJECT_DIR/tools/"
 else
-    if $DRY_RUN; then
-        echo "  cp cloud_init_template.sh → $PROJECT_DIR/tools/cloud_init.sh"
-    else
-        cp "$ARIS_REPO/tools/cloud_init_template.sh" "$PROJECT_DIR/tools/cloud_init.sh"
-        chmod +x "$PROJECT_DIR/tools/cloud_init.sh"
-        echo "  ✓ tools/cloud_init.sh"
-    fi
+    cp "$ARIS_REPO/tools/setup_linux_server.sh" "$PROJECT_DIR/tools/"
+    chmod +x "$PROJECT_DIR/tools/setup_linux_server.sh"
+    echo "  ✓ tools/setup_linux_server.sh"
+    cp "$ARIS_REPO/tools/setup_windows_server.ps1" "$PROJECT_DIR/tools/"
+    echo "  ✓ tools/setup_windows_server.ps1"
 fi
 
-# 5. 写入 AGENTS.md 中的服务器配置
+# 4. 提示配置 AGENTS.md
 if ! $DRY_RUN && [[ -f "$PROJECT_DIR/AGENTS.md" ]]; then
-    echo "→ 更新 AGENTS.md 部署类型..."
-    if [[ "$SERVER_TYPE" == "linux-lab" ]]; then
-        sed -i '' "s/server_type: auto/server_type: linux-lab/" "$PROJECT_DIR/AGENTS.md"
-    else
-        sed -i '' "s/server_type: auto/server_type: cloud-gpu/" "$PROJECT_DIR/AGENTS.md"
-    fi
-    echo "  ✓ AGENTS.md"
+    echo "→ AGENTS.md 已生成，请编辑填写服务器信息"
 fi
 
 # 6. 初始化 Git
@@ -195,25 +182,23 @@ echo "║  下一步:                                  ║"
 echo "╚══════════════════════════════════════════╝"
 echo ""
 
-if [[ "$SERVER_TYPE" == "linux-lab" ]]; then
-    echo "  1. 编辑 AGENTS.md — 填写服务器IP、用户名、路径"
-    echo "  2. 在服务器上准备数据:"
-    echo "     ~/datasets/defect/data.yaml  (data.yaml 和图片/标签一起放数据集目录)"
-    echo "  3. 把项目推送到 GitHub:"
-    echo "     cd $PROJECT_NAME && git add -A && git commit -m 'init project' && git push -u origin main"
-    echo "  4. 在服务器上运行初始化:"
-    echo "     ssh <服务器> 'bash -s' < $PROJECT_NAME/tools/setup_linux_server.sh"
-    echo ""
+echo "  1. 编辑 AGENTS.md — 填写服务器IP、用户名、路径"
+if [[ "$SERVER_TYPE" == "windows" ]]; then
+    echo "  2. 在 Windows 服务器上准备数据:"
+    echo "     C:\\datasets\\defect\\data.yaml  (data.yaml 和图片/标签一起放数据集目录)"
 else
-    echo "  1. 编辑 AGENTS.md — 填写云GPU偏好设置"
-    echo "  2. 在数据集目录准备 data.yaml (和图片/标签放一起)"
-    echo "  3. 把项目推送到 GitHub:"
-    echo "     cd $PROJECT_NAME && git add -A && git commit -m 'init project' && git push -u origin main"
-    echo "  4. 上传数据到对象存储:"
-    echo "     rclone copy ~/datasets/defect oss:my-bucket/datasets/defect"
-    echo "  5. 租用实例后，运行 tools/cloud_init.sh"
-    echo ""
+    echo "  2. 在 Linux 服务器上准备数据:"
+    echo "     ~/datasets/defect/data.yaml  (data.yaml 和图片/标签一起放数据集目录)"
 fi
+echo "  3. 把项目推送到 GitHub:"
+echo "     cd $PROJECT_NAME && git add -A && git commit -m 'init project' && git push -u origin main"
+echo "  4. 在服务器上运行初始化:"
+if [[ "$SERVER_TYPE" == "windows" ]]; then
+    echo "     ssh <Windows服务器> 'powershell -NoProfile -ExecutionPolicy Bypass -Command \"cd \$env:USERPROFILE\\Auto-research; .\\tools\\setup_windows_server.ps1\"'"
+else
+    echo "     ssh <Linux服务器> 'cd ~/Auto-research && bash tools/setup_linux_server.sh'"
+fi
+echo ""
 
 echo "  然后回到 Mac 用 Codex 执行:"
 echo "    /yolo-pipeline \"基于YOLO的缺陷检测\""

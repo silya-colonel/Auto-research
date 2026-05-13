@@ -206,7 +206,7 @@ def to_markdown(report: dict[str, Any]) -> str:
             "## Suggested Next Step",
             "",
             "- Fix missing labels, malformed rows, or path issues before training.",
-            "- If minority classes are sparse, track per-class recall in ClearML baselines.",
+            "- If minority classes are sparse, track per-class recall in metrics.",
             "- If tiny boxes are common, include an image-size sweep such as 640 vs 960.",
         ]
     )

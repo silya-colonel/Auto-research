@@ -7,28 +7,25 @@
 - **项目名**: yolo
 - **任务**: YOLO 缺陷检测
 - **框架**: Ultralytics YOLO
-- **训练目标**: Linux 服务器 (自建 或 云GPU)
-- **实验追踪**: ClearML
-- **ClearML 队列**: yolo-linux
+- **训练目标**: 自有 Linux 服务器
+- **指标存储**: runs/<task>/metrics.json
 - **数据 YAML**: ~/datasets/defect/data.yaml
 - **主目标**: recall-first / precision-first / balanced
 
 ## 安全规则
 
 - 原始图片和标签不入 Git
-- 大文件 (.pt/.pth/.onnx/.engine) 和 ClearML 缓存不入 Git
-- `requirements.txt` 入 Git 方便 Agent 安装依赖
+- 大文件 (.pt/.pth/.onnx/.engine) 不入 Git
+- `requirements.txt` 入 Git 方便安装依赖
 - 修改结构/loss 前必须确认 baseline 证据充分
-- 云 GPU 运行前必须确认费用预算
 
 ## Stage 0: 环境验证
 
 | 检查项 | 命令 | 通过标准 |
 |--------|------|---------|
 | CUDA可用 | `python -c "import torch; print(torch.cuda.is_available())"` | True |
-| ClearML连通 | `python -c "from clearml import Task; t=Task.init(project_name='yolo', task_name='conn_check'); t.close()"` | Web UI 出现任务 |
 | 数据可读 | `python -c "from ultralytics import YOLO; YOLO('yolo11n.pt')"` | 无报错 |
-| smoke test | `python train_yolo_clearml.py train --task-name smoke_1epoch --data-yaml ~/datasets/defect/data.yaml --model yolo11n.pt --epochs 1` | 1 epoch 完成 |
+| smoke test | `python train_yolo.py train --task-name smoke_1epoch --data-yaml ~/datasets/defect/data.yaml --model yolo11n.pt --epochs 1` | 1 epoch 完成 |
 
 ## Stage 1: Baselines
 

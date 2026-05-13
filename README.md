@@ -68,13 +68,13 @@ Custom Markdown skills for autonomous ML research workflows. These skills orches
 
 > These are full pipelines — you can also use each workflow independently. Already have an idea? Skip to Workflow 1.5. Have results? Jump to Workflow 3. Got reviews? Jump to Workflow 4. Want persistent memory? Enable [Research Wiki](#-research-wiki--persistent-research-memory). See [Quick Start](#-quick-start) for all commands and [Workflows](#-workflows) for the full breakdown.
 
-**🏭 YOLO mode** — Mac orchestration, Windows native training, ClearML visibility:
+**🏭 YOLO mode** — Mac orchestration, Linux server training:
 
 ```
-/yolo-pipeline "YOLO defect detection" — data: C:\datasets\defect\data.yaml, train target: windows-native, tracker: clearml
+/yolo-pipeline "YOLO defect detection" — data: ~/datasets/defect/data.yaml
 ```
 
-ARIS starts with data health checks and YOLO11 baselines before proposing modules or loss changes. GitHub private repos sync code, configs, and summaries only; raw images, large weights, and ClearML caches stay out of Git. Linux, Vast/Modal cloud GPU, patent, grant, robotics, posters, slides, OpenClaw/Cursor/Antigravity, and Zotero/Obsidian-style knowledge workflows remain available as optional layers.
+ARIS starts with data health checks and YOLO11 baselines before proposing modules or loss changes. GitHub private repos sync code, configs, and summaries only; raw images and large weights stay out of Git. Patent, grant, robotics, posters, slides, OpenClaw/Cursor/Antigravity, and Zotero/Obsidian-style knowledge workflows remain available as optional layers.
 
 **Basic mode** — give ARIS a research direction, it handles everything:
 
@@ -155,13 +155,11 @@ Two outputs: `PASTE_READY.txt` (exact char count, paste to venue) + `REBUTTAL_DR
 - **2026-04-08** — ![NEW](https://img.shields.io/badge/NEW-red?style=flat-square) 📚 **[`/research-wiki`](skills/research-wiki/SKILL.md)** — persistent research knowledge base inspired by [Karpathy's LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f). Accumulates papers, ideas, experiments, and claims across the entire research lifecycle with typed relationships. Wiki-aware hooks in `/research-lit` (ingest papers), `/idea-creator` (read wiki + write ideas back), and `/result-to-claim` (update claim status + trigger re-ideation). Failed ideas become anti-repetition memory. **ARIS now learns from its mistakes.**
 - **2026-04-05** — ![NEW](https://img.shields.io/badge/NEW-red?style=flat-square) 🧬 **[`/meta-optimize`](skills/meta-optimize/SKILL.md)** — outer-loop harness optimization for ARIS. Passively logs skill invocations, tool calls, failures, and parameter overrides via [Claude Code hooks](templates/claude-hooks/meta_logging.json). Run `/meta-optimize` to analyze accumulated usage data and propose SKILL.md improvements — reviewer-gated, user-approved. Inspired by [Meta-Harness](https://arxiv.org/abs/2603.28052) (Lee et al., 2026). **ARIS now optimizes itself.**
 - **2026-04-04** — ![NEW](https://img.shields.io/badge/NEW-red?style=flat-square) 🔧 **Codex Plugin deep integration** — `/codex:rescue` now auto-invoked when experiments fail (Workflow 1.5) or LaTeX won't compile (Workflow 3). GPT independently diagnoses the bug before Claude retries — two AI debuggers are better than one. Optional: `codex exec` powers nightmare review, `/codex:rescue` powers auto-debug. [Setup →](#optional-codex-plugin-for-code-review)
-- **2026-04-03** — ![NEW](https://img.shields.io/badge/NEW-red?style=flat-square) ☁️ **[Modal serverless GPU](skills/serverless-modal/SKILL.md)** — no GPU? `gpu: modal` in CLAUDE.md, one command (`modal run launcher.py`), no SSH, no Docker, auto scale-to-zero. **$30/month free tier** — enough to try ARIS experiments without any hardware. `pip install modal && modal setup` and go. Community contribution by [@zeyuzhangzyz](https://github.com/zeyuzhangzyz)
 - **2026-04-03** — ![NEW](https://img.shields.io/badge/NEW-red?style=flat-square) 🎮 **Reviewer Difficulty Levels** — `medium` (default, unchanged), `hard` (reviewer memory + debate protocol), `nightmare` (GPT reads repo directly via `codex exec` — Claude can't hide anything). `— difficulty: nightmare` for maximum stress test before submission
 <details>
 <summary>Earlier updates (2026-03-12 — 2026-03-30, 22 entries)</summary>
 
 - **2026-03-30** — 🔥 **Auto-debug & exhaust-before-surrender** — experiment-bridge auto-diagnoses failures (OOM, import, CUDA, NaN) and retries up to 3×. Inspired by [PUA](https://github.com/tanweai/pua)
-- **2026-03-30** — ☁️ **[Vast.ai GPU rental](skills/vast-gpu/SKILL.md)** — `gpu: vast` auto-rents cheapest GPU. By [@YIHONG-JIN](https://github.com/YIHONG-JIN). 🔧 MiniMax M2.7 upgrade by [@octo-patch](https://github.com/octo-patch)
 - **2026-03-27** — 📄 **IEEE venue support** (9 families). 🔎 **[Semantic Scholar](skills/semantic-scholar/SKILL.md)**. By [@ypd666](https://github.com/ypd666)
 - **2026-03-26** — 📄 **Document-based input** — `RESEARCH_BRIEF.md` auto-detect
 - **2026-03-24** — 📝 **[Workflow 4: `/rebuttal`](skills/rebuttal/SKILL.md)** — 7-phase pipeline, 3 safety gates
@@ -208,7 +206,7 @@ codex mcp add gemini-review --env GEMINI_REVIEW_BACKEND=api -- python3 ~/aris_re
 # 3. Use in Codex
 codex
 > /idea-discovery "your research direction"  # Workflow 1 — be specific! not "NLP" but "factorized gap in discrete diffusion LMs"
-> /yolo-pipeline "YOLO defect detection"  # YOLO: Windows training + ClearML + automatic experiments
+> /yolo-pipeline "YOLO defect detection"  # YOLO: Linux server training + automatic experiments
 > /experiment-bridge                         # Workflow 1.5 — have a plan? implement + deploy + collect results
 > /auto-review-loop "your paper topic or scope"  # Workflow 2: review → fix → re-review overnight
 > /paper-writing "NARRATIVE_REPORT.md"       # Workflow 3: narrative → polished PDF
@@ -274,7 +272,7 @@ codex
 > | `illustration` | `gemini` | AI illustration in Workflow 3: `gemini` (default, needs `GEMINI_API_KEY`), `mermaid` (free), or `false` (skip) |
 > | `venue` | `ICLR` | Target venue: `ICLR`, `NeurIPS`, `ICML`, `CVPR`, `ACL`, `AAAI`, `ACM`. Determines LaTeX style file and page limit |
 > | `base repo` | `false` | GitHub repo URL to clone as base codebase (e.g., `— base repo: https://github.com/org/project`). No code? Build on top of an open-source project |
-> | `gpu` | `local` | GPU target: `local` (default), `remote` (SSH server), or `vast` (rent on-demand from [Vast.ai](https://vast.ai) — auto-provision, auto-destroy) |
+> | `gpu` | `local` | GPU target: `local` (default) or `remote` (SSH server) |
 > | `compact` | `false` | Generate compact summary files (`IDEA_CANDIDATES.md`, `findings.md`, `EXPERIMENT_LOG.md`) for short-context models and session recovery |
 > | `ref paper` | `false` | Reference paper to build on (PDF path or arXiv URL). Summarized first, then ideas extend/improve it. Combine with `base repo` for paper+code workflows |
 > | `effort` | `balanced` | Work intensity: `lite` (0.4x tokens), `balanced` (default), `max` (2.5x), `beast` (5-8x). Controls breadth/depth/iterations. Codex reasoning always `xhigh`. See [Effort Levels](#-effort-levels) |
@@ -323,7 +321,7 @@ See [full setup guide](#%EF%B8%8F-setup) for details and [alternative model comb
 - 📝 **Paper writing** — narrative → outline → figures → LaTeX → PDF → auto-review (4/10 → 8.5/10), one command. Anti-hallucination citations via [DBLP](https://dblp.org)/[CrossRef](https://www.crossref.org)
 - 🤖 **Cross-model collaboration** — Codex executes, GPT-5.4 xhigh reviews. Adversarial, not self-play. Optional upgrade: `— reviewer: oracle-pro` for **GPT-5.4 Pro** (strongest reasoning) via [Oracle](https://github.com/steipete/oracle)
 - 📝 **Peer review** — review others' papers as a conference reviewer, with structured scoring and meta-review
-- 🖥️ **Review-driven experiments** — when GPT-5.4 says "run an ablation", Codex automatically writes the script, rsyncs to your GPU server, launches in screen, collects results, and folds them back into the paper. Just configure your server in `AGENTS.md` ([setup guide](#%EF%B8%8F-gpu-server-setup-for-auto-experiments)). **No GPU?** Use `gpu: vast` to rent one from [Vast.ai](https://vast.ai) on demand
+- 🖥️ **Review-driven experiments** — when GPT-5.4 says "run an ablation", Codex automatically writes the script, rsyncs to your GPU server, launches in screen, collects results, and folds them back into the paper. Just configure your server in `AGENTS.md` ([setup guide](#%EF%B8%8F-gpu-server-setup-for-auto-experiments))
 - 🔀 **Flexible models** — default Claude × GPT-5.4, also supports [GLM, MiniMax, Kimi, LongCat, DeepSeek, etc.](#-alternative-model-combinations) — no Claude or OpenAI API required
 - 🛑 **Human-in-the-loop** — configurable checkpoints at key decisions. `AUTO_PROCEED=true` for full autopilot, `false` to approve each step
 - 📱 **[Feishu/Lark notifications](#-feishulark-integration-optional)** — three modes: **off (default, strongly recommended for most users)**, push-only (webhook, mobile alerts), interactive (approve/reject from Feishu). Zero impact when unconfigured
@@ -611,7 +609,7 @@ Already have an experiment plan (from Workflow 1 or your own)? `/experiment-brid
 │   /novelty-check — verify idea isn't already published       │
 │                                                              │
 │   Supporting skills:                                         │
-│   /run-experiment    — deploy to local/remote/vast.ai GPU     │
+│   /run-experiment    — deploy to local/remote GPU              │
 │   /analyze-results   — interpret experiment outputs          │
 │   /monitor-experiment — check progress, collect results      │
 └─────────────────────────────────────────────────────────────┘
@@ -1077,9 +1075,8 @@ export OPENAI_API_KEY="your-key"
 | Skill | Description | Codex MCP? |
 |-------|-------------|:---:|
 | 🔗 **[`experiment-bridge`](skills/experiment-bridge/SKILL.md)** | Read experiment plan → implement code → sanity check → deploy to GPU → collect initial results | No |
-| ├ 🚀 [`run-experiment`](skills/run-experiment/SKILL.md) | Deploy experiments to local, remote, or [Vast.ai](https://vast.ai) GPU (`gpu: local/remote/vast`) | No |
+| ├ 🚀 [`run-experiment`](skills/run-experiment/SKILL.md) | Deploy experiments to local or remote GPU (`gpu: local/remote`) | No |
 | ├ 👀 [`monitor-experiment`](skills/monitor-experiment/SKILL.md) | Monitor running experiments, check progress, collect results | No |
-| └ ☁️ [`vast-gpu`](skills/vast-gpu/SKILL.md) | Rent, manage, and destroy on-demand GPU instances from [Vast.ai](https://vast.ai) | No |
 
 ### 🔁 Workflow 2: Auto Research Loop
 
@@ -1088,7 +1085,7 @@ export OPENAI_API_KEY="your-key"
 | 🔁 **[`auto-review-loop`](skills/auto-review-loop/SKILL.md)** | **Pipeline orchestrator** — autonomous review→fix→re-review (max 4 rounds) | Yes |
 | ├ 🔬 [`research-review`](skills/research-review/SKILL.md) | Deep review from external LLM (shared with Workflow 1) | Yes |
 | ├ 🔍 [`novelty-check`](skills/novelty-check/SKILL.md) | Verify novelty when reviewer suggests new directions | Yes |
-| ├ 🚀 [`run-experiment`](skills/run-experiment/SKILL.md) | Deploy experiments to local, remote, or [Vast.ai](https://vast.ai) GPU (`gpu: local/remote/vast`) | No |
+| ├ 🚀 [`run-experiment`](skills/run-experiment/SKILL.md) | Deploy experiments to local or remote GPU (`gpu: local/remote`) | No |
 | ├ 📊 [`analyze-results`](skills/analyze-results/SKILL.md) | Analyze experiment results, compute statistics, generate insights | No |
 | └ 👀 [`monitor-experiment`](skills/monitor-experiment/SKILL.md) | Monitor running experiments, check progress, collect results | No |
 | 🔁 [`auto-review-loop-llm`](skills/auto-review-loop-llm/SKILL.md) | Same as above, but uses any OpenAI-compatible API via [`llm-chat`](mcp-servers/llm-chat/) MCP server | No |
@@ -1352,55 +1349,6 @@ If you are already on the GPU server, you can add the following to your `AGENTS.
 - Activate before any Python command: `The command to activate your experiment environment` (uv, conda, etc.)
 - Code directory: `/home/YOUR_USERNAME/YOUR_CODE_DIRECTORY/`
 ```
-
-#### Option C: Vast.ai On-Demand GPU (`gpu: vast`)
-
-No GPU? Rent one from [Vast.ai](https://vast.ai) on demand. ARIS **analyzes your training task** (model size, dataset, estimated time), searches for the cheapest GPU that fits, and presents options with **estimated total cost** — not just $/hr. After you pick, it handles everything: rent → setup → run → collect results → destroy.
-
-**Prerequisites:**
-
-1. **Create a Vast.ai account** at https://cloud.vast.ai/ and add billing (credit card or crypto)
-
-2. **Install the `vastai` CLI** (requires **Python ≥ 3.10**):
-   ```bash
-   pip install vastai
-   ```
-   If your Python is older (check with `python --version`), use a virtual environment with Python ≥ 3.10 (e.g., `conda create`, `pyenv`, `uv venv`, etc.).
-
-3. **Set your API key** — get it from https://cloud.vast.ai/cli/:
-   ```bash
-   vastai set api-key YOUR_API_KEY
-   ```
-
-4. **Upload your SSH public key** at https://cloud.vast.ai/manage-keys/ — this is **required before renting any instance** (keys are baked in at creation time). If you don't have one:
-   ```bash
-   ssh-keygen -t ed25519 -C "your_email@example.com"
-   cat ~/.ssh/id_ed25519.pub   # copy this to Vast.ai
-   ```
-
-5. **Verify setup** — test that search works:
-   ```bash
-   vastai search offers 'gpu_ram>=24 reliability>0.95' -o 'dph+' --limit 3
-   ```
-
-**Add to `CLAUDE.md`:**
-```markdown
-## Vast.ai
-- gpu: vast                  # rent on-demand GPU from vast.ai
-- auto_destroy: true         # auto-destroy after experiment completes (default)
-- max_budget: 5.00           # optional: warn if estimated cost exceeds this
-```
-
-That's it — no GPU model or hardware config needed. When you run `/run-experiment`, ARIS reads your experiment scripts/plan, estimates VRAM and training time, and presents options like:
-
-```
-| # | GPU       | VRAM  | $/hr  | Est. Hours | Est. Total | Offer ID |
-|---|-----------|-------|-------|------------|------------|----------|
-| 1 | RTX 4090  | 24 GB | $0.28 | ~4h        | ~$1.12     | 6995713  |  ← best value
-| 2 | A100 SXM  | 80 GB | $0.95 | ~2h        | ~$1.90     | 7023456  |  ← fastest
-```
-
-Pick a number and it handles the rest. Use `/vast-gpu` directly for manual control.
 
 **No server at all?** The review and rewriting skills still work without GPU access. Only experiment-related fixes will be skipped (flagged for manual follow-up).
 
@@ -1669,7 +1617,6 @@ Now skills will:
 | `/auto-review-loop` | Review scored (each round), loop complete | Score + verdict | + wait for continue/stop |
 | `/auto-paper-improvement-loop` | Review scored, all rounds done | Score progression | Score progression |
 | `/run-experiment` | Experiments deployed | GPU assignment + ETA | GPU assignment + ETA |
-| `/vast-gpu` | Instance rented/destroyed | Instance ID + cost | Instance ID + cost |
 | `/monitor-experiment` | Results collected | Results table | Results table |
 | `/idea-discovery` | Phase transitions, final report | Summary at each phase | + approve/reject at checkpoints |
 | `/research-pipeline` | Stage transitions, pipeline done | Stage summary | + approve/reject |
@@ -1707,7 +1654,7 @@ Skills are plain Markdown files. Fork and customize:
 | `WANDB` | false | Auto-add W&B logging to experiments | → `experiment-bridge` → `run-experiment` |
 | `CODE_REVIEW` | true | GPT-5.4 reviews experiment code before deployment | → `experiment-bridge` |
 | `BASE_REPO` | false | GitHub repo URL to clone as base codebase for experiments | → `experiment-bridge` |
-| `GPU` | `local` | GPU target: `local`, `remote` (SSH), or `vast` ([Vast.ai](https://vast.ai) on-demand rental) | → `experiment-bridge` → `run-experiment` |
+| `GPU` | `local` | GPU target: `local` or `remote` (SSH server) | → `experiment-bridge` → `run-experiment` |
 | `COMPACT` | false | Generate compact summary files for short-context models and session recovery | → all workflows |
 | `REF_PAPER` | false | Reference paper (PDF path or URL) to base ideas on. Summarized first, then used as context | → `idea-discovery` |
 | `ILLUSTRATION` | `gemini` | AI illustration: `gemini` (default), `mermaid` (free), or `false` (skip) | → `paper-writing` |

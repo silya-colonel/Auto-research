@@ -2,6 +2,7 @@
 """从 Kaggle 下载数据集，自动转换 YOLO 格式并分割 train/val。
 
 用法:
+  python kaggle_download.py
   python kaggle_download.py ultralytics/coco8
   python kaggle_download.py huazai/visdrone2019 --path data/visdrone --split-test
   python kaggle_download.py alessiocorrado99/animals10 --path data/animals
@@ -15,9 +16,11 @@
 from __future__ import annotations
 
 import argparse
+import inspect
 import json
 import os
 import random
+import re
 import shutil
 import subprocess
 import sys
@@ -29,16 +32,34 @@ from pathlib import Path
 
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
 
+DATASET_REF_RE = re.compile(
+    r"(?P<owner>[A-Za-z0-9][A-Za-z0-9_-]*)/(?P<slug>[A-Za-z0-9][A-Za-z0-9_-]*)"
+)
+KAGGLE_URL_RE = re.compile(
+    r"kaggle\.com/(?:datasets/)?(?P<owner>[A-Za-z0-9][A-Za-z0-9_-]*)/"
+    r"(?P<slug>[A-Za-z0-9][A-Za-z0-9_-]*)"
+)
+KAGGLEHUB_CALL_RE = re.compile(
+    r"dataset_download\(\s*[\"'](?P<dataset>[^\"']+/[^\"']+)[\"']"
+)
+
 # ── Kaggle 下载 ────────────────────────────────────────────────────
 
 
 def download_kagglehub(dataset: str, out_dir: Path) -> Path:
     import kagglehub
 
+    out_dir.mkdir(parents=True, exist_ok=True)
     print(f"[kagglehub] 下载 {dataset} -> {out_dir}")
-    download_path = kagglehub.dataset_download(dataset, path=str(out_dir))
+    sig = inspect.signature(kagglehub.dataset_download)
+    kwargs = {}
+    if "output_dir" in sig.parameters:
+        kwargs["output_dir"] = str(out_dir)
+    download_path = Path(kagglehub.dataset_download(dataset, **kwargs))
+    if download_path.resolve() != out_dir.resolve():
+        _copy_downloaded_tree(download_path, out_dir)
     print(f"[kagglehub] 完成: {download_path}")
-    return Path(download_path)
+    return out_dir
 
 
 def download_kaggle_cli(dataset: str, out_dir: Path) -> Path:
@@ -65,6 +86,9 @@ def list_files_kagglehub(dataset: str):
 
 
 def list_files_kaggle_cli(dataset: str):
+    if not shutil.which("kaggle"):
+        print("[错误] 未找到 kaggle CLI。请先 pip install kaggle，或安装 kagglehub。")
+        return
     result = subprocess.run(["kaggle", "datasets", "files", dataset], capture_output=True, text=True)
     print(result.stdout or result.stderr)
 
@@ -84,6 +108,21 @@ def _has_kagglehub() -> bool:
         return True
     except ImportError:
         return False
+
+
+def _copy_downloaded_tree(src: Path, dst: Path) -> None:
+    """兼容旧版 kagglehub：只能下载到缓存时，把内容同步到目标目录。"""
+    if not src.exists():
+        return
+    if src.is_file():
+        shutil.copy2(src, dst / src.name)
+        return
+    for item in src.iterdir():
+        target = dst / item.name
+        if item.is_dir():
+            shutil.copytree(item, target, dirs_exist_ok=True)
+        else:
+            shutil.copy2(item, target)
 
 # ── 格式检测 ──────────────────────────────────────────────────────
 
@@ -169,7 +208,9 @@ def convert_coco_to_yolo(data_dir: Path) -> dict:
     with open(coco_json, "r", encoding="utf-8") as f:
         coco = json.load(f)
 
-    categories = {cat["id"]: cat["name"] for cat in coco.get("categories", [])}
+    sorted_categories = sorted(coco.get("categories", []), key=lambda cat: cat["id"])
+    category_id_to_yolo = {cat["id"]: idx for idx, cat in enumerate(sorted_categories)}
+    categories = {idx: cat["name"] for idx, cat in enumerate(sorted_categories)}
     images = {img["id"]: img for img in coco.get("images", [])}
     annotations = coco.get("annotations", [])
 
@@ -207,8 +248,10 @@ def convert_coco_to_yolo(data_dir: Path) -> dict:
 
         lines = []
         for ann in ann_by_image[img_id]:
+            if ann["category_id"] not in category_id_to_yolo:
+                continue
             x, y, w, h = ann["bbox"]  # COCO: 绝对像素 [x, y, w, h]
-            cls = ann["category_id"] - 1  # YOLO 0-indexed
+            cls = category_id_to_yolo[ann["category_id"]]
             cx = (x + w / 2) / img_w
             cy = (y + h / 2) / img_h
             nw = w / img_w
@@ -447,13 +490,15 @@ def generate_data_yaml(data_dir: Path, class_names: dict, use_test: bool = False
 
     names_list = [class_names[k] for k in sorted(class_names)]
     nc = len(names_list)
+    train_rel = _image_split_rel(data_dir, "train", fallback="images")
+    val_rel = _image_split_rel(data_dir, "val", fallback=train_rel)
 
     lines = [
         f"path: {data_dir.resolve()}",
-        "train: images/train",
-        "val: images/val",
+        f"train: {train_rel}",
+        f"val: {val_rel}",
     ]
-    if use_test or (data_dir / "images" / "test").exists():
+    if (data_dir / "images" / "test").exists():
         lines.append("test: images/test")
     lines.append(f"nc: {nc}")
     if nc <= 30:
@@ -533,12 +578,68 @@ def print_auth_guide():
 """)
 
 
+def prompt_dataset_input() -> str:
+    """交互读取 Kaggle 数据集名、kagglehub 代码片段或文件路径。"""
+    print("""
+请输入 Kaggle 数据集信息，支持三种形式：
+  1) aadityadeth/yolov5-weld
+  2) kagglehub.dataset_download("aadityadeth/yolov5-weld")
+  3) 保存了上述内容的 .py/.txt 文件路径
+单行输入会直接开始；粘贴多行 Python 代码时，粘贴完再按一次空行结束。
+""")
+    lines = []
+    try:
+        first_line = input("dataset/code/file> ").strip()
+    except EOFError:
+        return ""
+
+    if parse_dataset_input(first_line):
+        return first_line
+
+    lines.append(first_line)
+    print("继续粘贴剩余内容，空行结束。")
+    while True:
+        try:
+            line = input("... ")
+        except EOFError:
+            break
+        if not line.strip():
+            break
+        lines.append(line)
+    return "\n".join(lines).strip()
+
+
+def parse_dataset_input(raw: str) -> str:
+    """从数据集名、Kaggle URL、kagglehub 代码片段或文件中提取 owner/slug。"""
+    text = raw.strip().strip("\"'")
+    if not text:
+        return ""
+
+    path = Path(text).expanduser()
+    if path.exists() and path.is_file():
+        text = path.read_text(encoding="utf-8").strip()
+
+    call_match = KAGGLEHUB_CALL_RE.search(text)
+    if call_match:
+        text = call_match.group("dataset")
+
+    url_match = KAGGLE_URL_RE.search(text)
+    if url_match:
+        return f"{url_match.group('owner')}/{url_match.group('slug')}"
+
+    ref_match = DATASET_REF_RE.search(text)
+    if ref_match:
+        return f"{ref_match.group('owner')}/{ref_match.group('slug')}"
+
+    return ""
+
+
 # ── 主入口 ────────────────────────────────────────────────────────
 
 
 def main():
     parser = argparse.ArgumentParser(description="Kaggle 下载 + YOLO 转换 + 分割")
-    parser.add_argument("dataset", help="Kaggle 数据集标识符 (例如 ultralytics/coco8)")
+    parser.add_argument("dataset", nargs="?", help="Kaggle 数据集标识符 (例如 ultralytics/coco8)")
     parser.add_argument("--path", "--out", dest="out_dir", type=Path, default=None,
                         help="下载目标路径（默认: data/<dataset-name>）")
     parser.add_argument("--list", action="store_true", help="仅列出数据集文件")
@@ -573,6 +674,14 @@ def main():
     if args.setup_auth:
         print_auth_guide()
         return
+
+    if not args.dataset:
+        args.dataset = prompt_dataset_input()
+
+    args.dataset = parse_dataset_input(args.dataset)
+
+    if not args.dataset:
+        parser.error("无法识别 Kaggle 数据集名；可输入 aadityadeth/yolov5-weld 或 kagglehub.dataset_download(...)")
 
     if args.list:
         if args.method == "kagglehub" or (args.method == "auto" and _has_kagglehub()):
@@ -679,7 +788,7 @@ def main():
     print(f"\n✓ 完成: {args.out_dir.resolve()}")
     if (args.out_dir / "data.yaml").exists():
         print(f"  data.yaml: {args.out_dir / 'data.yaml'}")
-        print(f"  训练命令: python train_yolo_clearml.py train --data-yaml {args.out_dir / 'data.yaml'} --task-name <name>")
+        print(f"  训练命令: python train_yolo.py train --data-yaml {args.out_dir / 'data.yaml'} --task-name <name>")
 
 
 def _collect_all_images(data_dir: Path) -> list[Path]:
@@ -707,17 +816,26 @@ def _infer_names(data_dir: Path) -> dict[int, str]:
 def _write_minimal_yaml(data_dir: Path):
     images = _collect_all_images(data_dir / "images")
     nc = 1 if not images else 1
+    train_rel = _image_split_rel(data_dir, "train", fallback="images")
+    val_rel = _image_split_rel(data_dir, "val", fallback=train_rel)
     has_test = (data_dir / "images" / "test").exists()
     lines = [
         f"path: {data_dir.resolve()}",
-        "train: images/train",
-        "val: images/val",
+        f"train: {train_rel}",
+        f"val: {val_rel}",
     ]
     if has_test:
         lines.append("test: images/test")
     lines.append(f"nc: {nc}")
     lines.append("names: [class_0]")
     (data_dir / "data.yaml").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _image_split_rel(data_dir: Path, split: str, fallback: str) -> str:
+    rel = Path("images") / split
+    if (data_dir / rel).is_dir():
+        return rel.as_posix()
+    return fallback
 
 
 if __name__ == "__main__":

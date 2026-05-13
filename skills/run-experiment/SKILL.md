@@ -1,8 +1,8 @@
 ---
 name: run-experiment
-description: Deploy and run ML experiments on local, remote, Vast.ai, or Modal serverless GPU. Use when user says "run experiment", "deploy to server", "跑实验", or needs to launch training jobs.
+description: Deploy and run ML experiments on local or remote Linux server. Use when user says "run experiment", "deploy to server", "跑实验", or needs to launch training jobs.
 argument-hint: [experiment-description]
-allowed-tools: Bash(*), Read, Grep, Glob, Edit, Write, Agent, Skill(serverless-modal)
+allowed-tools: Bash(*), Read, Grep, Glob, Edit, Write, Agent
 ---
 
 # Run Experiment
@@ -17,17 +17,8 @@ Read the project's `CLAUDE.md` to determine the experiment environment:
 
 - **Local GPU** (`gpu: local`): Look for local CUDA/MPS setup info
 - **Remote server** (`gpu: remote`): Look for SSH alias, conda env, code directory
-- **Windows native** (`gpu: windows` or `train_target: windows-native`): Look for Windows host/project dir, conda env, ClearML queue, and PowerShell launch mode
-- **Vast.ai** (`gpu: vast`): Check for `vast-instances.json` at project root — if a running instance exists, use it. Also check `CLAUDE.md` for a `## Vast.ai` section.
-- **Modal** (`gpu: modal`): Serverless GPU via Modal. No SSH, no Docker, auto scale-to-zero. Delegate to `/serverless-modal`.
 
-**Modal detection:** If `CLAUDE.md` has `gpu: modal` or a `## Modal` section, the entire deployment is handled by `/serverless-modal`. Jump to **Step 4: Deploy (Modal)** — Steps 2-3 are not needed (Modal handles code sync and GPU allocation automatically).
-
-**Vast.ai detection priority:**
-1. If `CLAUDE.md` has `gpu: vast` or a `## Vast.ai` section:
-   - If `vast-instances.json` exists and has a running instance → use that instance
-   - If no running instance → call `/vast-gpu provision` which analyzes the task, presents cost-optimized GPU options, and rents the user's choice
-2. If no server info is found in `CLAUDE.md`, ask the user.
+If no server info is found in `CLAUDE.md`, ask the user.
 
 ### Step 2: Pre-flight Check
 

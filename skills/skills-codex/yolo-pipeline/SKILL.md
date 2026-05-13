@@ -1,12 +1,12 @@
 ---
 name: yolo-pipeline
-description: Linux-native YOLO defect detection pipeline for Ultralytics YOLO with ClearML, GitHub sync, automatic experiment planning, result analysis, and paper/patent/fund handoff. Use when the user says "YOLO defect detection", "defect detection", "ClearML YOLO", "缺陷检测", or wants ARIS to automate a YOLO experiment lifecycle.
+description: Linux YOLO defect detection pipeline for Ultralytics YOLO with GitHub sync, automatic experiment planning, result analysis, and paper/patent/fund handoff. Use when the user says "YOLO defect detection", "defect detection", "缺陷检测", or wants ARIS to automate a YOLO experiment lifecycle.
 argument-hint: [project-brief-or-data-yaml]
 ---
 
 # YOLO Pipeline
 
-Run a YOLO defect detection project with **Mac orchestration + GitHub private repo + Linux training + ClearML + ARIS/Codex automation**.
+Run a YOLO defect detection project with **Mac orchestration + GitHub private repo + Linux server training + ARIS/Codex automation**.
 
 This Codex-native skill is the primary entrypoint for YOLO defect projects. Claude Code handles training execution; Codex handles result review and paper production.
 
@@ -16,8 +16,8 @@ Human-facing full setup guide: `docs/YOLO_FULL_WORKFLOW_CN.md`.
 
 - **Developer machine**: Mac for editing, AI orchestration, literature work, GitHub sync.
 - **Code sync**: GitHub private repository (code, configs, manifests, small reports only).
-- **Training target**: Linux server — lab-owned or cloud GPU (AutoDL, Vast.ai).
-- **Experiment tracker**: ClearML SDK + ClearML Agent.
+- **Training target**: Your own Linux server.
+- **Metrics storage**: Local JSON files (`runs/<task>/metrics.json`).
 - **Detector framework**: Ultralytics YOLO.
 
 ## Automation Boundary
@@ -26,15 +26,14 @@ ARIS can automate:
 
 - inspect `data.yaml`, class names, image/label folders, label health
 - propose baseline and tuning grids
-- generate training commands (SSH remote or ClearML Agent submission)
-- collect metrics and artifacts from ClearML
+- generate training commands for SSH remote execution
+- collect metrics from local `runs/<task>/metrics.json`
 - compare runs and recommend next experiment wave
 - turn validated evidence into paper, patent, grant, poster, slides
 
 ARIS must pause before:
 
 - changing dataset taxonomy or relabeling policy
-- making expensive cloud GPU purchases
 - claiming novelty from weak results
 - replacing the detector framework
 - invasive architecture/loss changes without baseline evidence
@@ -53,16 +52,13 @@ Recommended `AGENTS.md` project block:
 ## YOLO Project
 - task: YOLO defect detection
 - framework: ultralytics
-- server_type: linux-lab | cloud-gpu
 - server_host: <ssh-host-or-ip>
 - server_user: <user>
 - data_yaml: ~/datasets/defect/data.yaml
-- clearml_project: yolo
-- clearml_queue: yolo-linux
 - code_sync: git
-- train_target: linux-native
+- train_target: linux
 - gpu_policy: single-gpu-first
-- human_checkpoint: architecture-change, cloud-gpu, paper-claim
+- human_checkpoint: architecture-change, paper-claim
 - large_files_policy: do-not-git-data-or-weights
 ```
 
@@ -71,7 +67,7 @@ Recommended `AGENTS.md` project block:
 ### Phase 0: Project Scaffold
 
 Use `tools/init_yolo_project.sh` to create the project. Verify:
-- `.gitignore` covers datasets, weights, ClearML cache
+- `.gitignore` covers datasets, weights
 - `experiments/`, `results/` directories exist
 - `AGENTS.md` has server config
 
@@ -96,39 +92,22 @@ stage: baseline
 framework: ultralytics
 runs:
   - id: smoke_1epoch
-    command: python train_yolo_clearml.py train --task-name smoke_1epoch --data-yaml ~/datasets/defect/data.yaml --model yolo11n.pt --epochs 1
+    command: python train_yolo.py train --task-name smoke_1epoch --data-yaml ~/datasets/defect/data.yaml --model yolo11n.pt --epochs 1
   - id: baseline_yolo11n_640
-    command: python train_yolo_clearml.py train --task-name baseline_yolo11n_640 --data-yaml ~/datasets/defect/data.yaml --model yolo11n.pt --imgsz 640 --epochs 100
+    command: python train_yolo.py train --task-name baseline_yolo11n_640 --data-yaml ~/datasets/defect/data.yaml --model yolo11n.pt --imgsz 640 --epochs 100
   - id: baseline_yolo11s_640
-    command: python train_yolo_clearml.py train --task-name baseline_yolo11s_640 --data-yaml ~/datasets/defect/data.yaml --model yolo11s.pt --imgsz 640 --epochs 100
+    command: python train_yolo.py train --task-name baseline_yolo11s_640 --data-yaml ~/datasets/defect/data.yaml --model yolo11s.pt --imgsz 640 --epochs 100
   - id: baseline_yolo11n_960
-    command: python train_yolo_clearml.py train --task-name baseline_yolo11n_960 --data-yaml ~/datasets/defect/data.yaml --model yolo11n.pt --imgsz 960 --epochs 100
+    command: python train_yolo.py train --task-name baseline_yolo11n_960 --data-yaml ~/datasets/defect/data.yaml --model yolo11n.pt --imgsz 960 --epochs 100
 ```
 
 ### Phase 3: Linux Execution
 
-**lab server (direct SSH)**:
+**Direct SSH**:
 ```bash
-ssh lab-server "cd ~/work/yolo && conda activate yolo && \
-  python train_yolo_clearml.py train --task-name baseline_yolo11n_640 \
+ssh lab-server "cd ~/Auto-research && conda activate yolo && \
+  python train_yolo.py train --task-name baseline_yolo11n_640 \
   --data-yaml ~/datasets/defect/data.yaml --model yolo11n.pt --epochs 100"
-```
-
-**lab server (ClearML Agent)**:
-```bash
-clearml-task --project yolo --name baseline_yolo11n_640 \
-  --repo git@github.com:<user>/yolo-defect.git --branch main \
-  --queue yolo-linux --script train_yolo_clearml.py \
-  --args "--task-name baseline_yolo11n_640 --data-yaml ~/datasets/defect/data.yaml --model yolo11n.pt --epochs 100"
-```
-
-**cloud GPU (direct)**:
-```bash
-ssh -p <port> root@<instance> \
-  "cd /root/autodl-tmp/yolo && \
-   python train_yolo_clearml.py train --task-name baseline_yolo11n_640 \
-   --data-yaml /root/autodl-tmp/datasets/defect/data.yaml \
-   --model yolo11n.pt --epochs 100 --shutdown-when-done"
 ```
 
 ### Phase 4: YOLO Tuning Wave
@@ -176,8 +155,8 @@ Must separate: confirmed evidence / plausible interpretation / unsupported claim
 ## Key Rules
 
 - GitHub: code/config/report sync, NOT datasets or large weights.
-- Linux training via SSH remote or ClearML Agent queues.
+- Linux training via SSH remote execution.
 - Start with baselines before custom modules.
 - Prefer few, well-motivated experiments over large blind sweeps.
-- Cloud GPU: always set auto-shutdown.
+- Training metrics in `runs/<task>/metrics.json` — Codex reads them for review.
 - Claude Code executes training. Codex reviews results. Maintain separation.

@@ -27,7 +27,7 @@ Workflow-specific:
 — difficulty: medium | hard | nightmare      # reviewer adversarial level
 — venue: ICLR | NeurIPS | ICML | ...        # target venue
 — sources: web, zotero, deepxiv, ...        # literature sources
-— gpu: local | remote | windows | vast | modal # GPU backend
+— gpu: local | remote              # GPU backend
 ```
 
 Parameters pass through workflow chains automatically.
@@ -43,7 +43,7 @@ Parameters pass through workflow chains automatically.
 
 | Workflow | Invoke | Input | Output | When to use |
 |----------|--------|-------|--------|-------------|
-| YOLO | `/yolo-pipeline "project brief or data.yaml"` | YOLO defect task, `data.yaml`, Windows/ClearML info | data report, baseline matrix, ClearML runs, result summary, writing handoff | Windows-native Ultralytics defect detection |
+| YOLO | `/yolo-pipeline "project brief or data.yaml"` | YOLO defect task, `data.yaml` | data report, baseline matrix, training runs, result summary, writing handoff | Ultralytics defect detection on Linux or Windows GPU server |
 | W1: Idea Discovery | `/idea-discovery "direction"` | research direction | IDEA_REPORT.md, EXPERIMENT_PLAN.md | Starting new research |
 | W1.5: Experiment Bridge | `/experiment-bridge` | EXPERIMENT_PLAN.md | running code, EXPERIMENT_LOG.md | Have a plan, need to implement |
 | W2: Auto Review | `/auto-review-loop "scope"` | paper + results | improved paper | Iterative improvement |
@@ -73,20 +73,20 @@ Parameters pass through workflow chains automatically.
 | `/analyze-results` | Result analysis | Statistics and comparison tables |
 | `/ablation-planner` | Ablation design | Reviewer-perspective ablations |
 
-## YOLO / Windows ClearML Route
+## YOLO Route
 
-Use `/yolo-pipeline` when the task is YOLO defect detection, especially when the Linux server is unavailable and Windows must run training.
+Use `/yolo-pipeline` when the task is YOLO defect detection on your Linux or Windows GPU server.
 
 Default assumptions:
 
 - Mac handles editing, Codex orchestration, literature, and GitHub private repo sync.
-- Windows runs native conda/Python training and ClearML Agent queues.
-- ClearML is the experiment UI and metric/artifact tracker.
+- Linux or Windows server runs conda/Python training via SSH.
+- Training metrics are stored locally in `runs/<task>/metrics.json`.
 - Ultralytics is the first framework; custom modules/losses come after stable baselines.
 - GitHub carries code, configs, manifests, and summaries only.
-- Raw data, large weights, ClearML cache, and customer-sensitive files never go to GitHub.
+- Raw data, large weights, and customer-sensitive files never go to GitHub.
 
-Keep extension skills available as layers: patent, grant, robot, poster, slides, OpenClaw/Cursor/Antigravity guides, Vast/Modal cloud GPU, and Zotero/Obsidian-style research wiki workflows.
+Keep extension skills available as layers: patent, grant, robot, poster, slides, OpenClaw/Cursor/Antigravity guides, and Zotero/Obsidian-style research wiki workflows.
 
 ## Artifact Contracts
 

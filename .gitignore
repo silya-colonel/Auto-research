@@ -39,9 +39,6 @@ runs/
 *.tflite
 *.mlpackage
 
-# ClearML
-.clearml/
-clearml.conf
 .aris/
 
 # OMC runtime

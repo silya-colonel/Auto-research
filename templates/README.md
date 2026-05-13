@@ -18,10 +18,10 @@ Ready-to-use templates for each ARIS workflow. Copy, fill in your content, and r
 
 | Template | What to do |
 |----------|------------|
-| [YOLO_EXPERIMENT_MANIFEST_TEMPLATE.md](YOLO_EXPERIMENT_MANIFEST_TEMPLATE.md) | Baseline/tuning/architecture experiment manifest for Windows + ClearML YOLO runs |
-| [YOLO_GITIGNORE_TEMPLATE.txt](YOLO_GITIGNORE_TEMPLATE.txt) | Safety defaults to keep datasets, weights, and ClearML cache out of Git |
-| [YOLO_REQUIREMENTS_TEMPLATE.txt](YOLO_REQUIREMENTS_TEMPLATE.txt) | Minimal Python dependency list for Windows direct runs and ClearML Agent jobs |
-| [train_yolo_clearml.py](train_yolo_clearml.py) | Optional Ultralytics + ClearML wrapper for repeatable ClearML Agent jobs |
+| [YOLO_EXPERIMENT_MANIFEST_TEMPLATE.md](YOLO_EXPERIMENT_MANIFEST_TEMPLATE.md) | Baseline/tuning/architecture experiment manifest for YOLO runs |
+| [YOLO_GITIGNORE_TEMPLATE.txt](YOLO_GITIGNORE_TEMPLATE.txt) | Safety defaults to keep datasets and weights out of Git |
+| [YOLO_REQUIREMENTS_TEMPLATE.txt](YOLO_REQUIREMENTS_TEMPLATE.txt) | Minimal Python dependency list for YOLO training |
+| [train_yolo.py](train_yolo.py) | Ultralytics YOLO training wrapper with local metrics logging |
 
 ### Chinese Templates (中文模板)
 
@@ -61,7 +61,7 @@ cp templates/EXPERIMENT_PLAN_TEMPLATE.md refine-logs/EXPERIMENT_PLAN.md
 
 ```bash
 cp templates/YOLO_EXPERIMENT_MANIFEST_TEMPLATE.md experiments/YOLO_EXPERIMENT_MANIFEST.md
-cp templates/train_yolo_clearml.py train_yolo_clearml.py
+cp templates/train_yolo.py train_yolo.py
 cp templates/YOLO_REQUIREMENTS_TEMPLATE.txt requirements.txt
 # Then invoke:
 /yolo-pipeline "YOLO defect detection"

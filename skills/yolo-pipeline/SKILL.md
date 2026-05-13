@@ -1,17 +1,13 @@
 ---
 name: yolo-pipeline
-description: Linux-native YOLO defect detection pipeline for Ultralytics YOLO with ClearML, GitHub sync, Claude Code execution, Codex review, and automatic experiment planning. Use when the user says "YOLO defect detection", "defect detection", "ClearML YOLO", "缺陷检测", or wants ARIS to automate a YOLO experiment lifecycle.
+description: Linux/Windows YOLO defect detection pipeline for Ultralytics YOLO with GitHub sync, Claude Code execution, Codex review, and automatic experiment planning. Use when the user says "YOLO defect detection", "defect detection", "缺陷检测", or wants ARIS to automate a YOLO experiment lifecycle.
 argument-hint: [project-brief-or-data-yaml]
-allowed-tools: Bash(*), Read, Grep, Glob, Edit, Write, Agent, Skill(research-lit), Skill(experiment-plan), Skill(run-experiment), Skill(analyze-results), Skill(result-to-claim), Skill(ablation-planner), Skill(paper-writing), Skill(patent-pipeline), Skill(grant-proposal), Skill(paper-poster), Skill(paper-slides), Skill(vast-gpu)
+allowed-tools: Bash(*), Read, Grep, Glob, Edit, Write, Agent, Skill(research-lit), Skill(experiment-plan), Skill(run-experiment), Skill(analyze-results), Skill(result-to-claim), Skill(ablation-planner), Skill(paper-writing), Skill(patent-pipeline), Skill(grant-proposal), Skill(paper-poster), Skill(paper-slides)
 ---
 
 # YOLO Pipeline
 
-Run a YOLO defect detection project with **Mac orchestration + GitHub private repo + Linux training + ClearML tracking + ARIS automation**.
-
-Two deployment modes:
-- **linux-lab**: Own lab Linux server with conda, systemd, ClearML Agent
-- **cloud-gpu**: Rented cloud GPU (AutoDL/Vast.ai) with auto-shutdown
+Run a YOLO defect detection project with **Mac orchestration + GitHub private repo + Linux or Windows GPU server training + ARIS automation**.
 
 Claude Code handles execution/training dispatch. Codex handles result review/paper production.
 
@@ -19,24 +15,22 @@ Claude Code handles execution/training dispatch. Codex handles result review/pap
 
 - **Developer machine**: Mac for editing, Claude Code/Codex orchestration, GitHub sync.
 - **Code sync**: GitHub private repository (code, configs, manifests, small reports only).
-- **Training target**: Linux server (lab-owned or cloud GPU).
-- **Experiment tracker**: ClearML (SaaS or self-hosted).
+- **Training target**: Your own Linux server or Windows GPU server.
+- **Metrics storage**: Local JSON files (`runs/<task>/metrics.json`).
 - **Detector framework**: Ultralytics YOLO.
-- **Agent**: ClearML Agent (systemd on lab server, manual on cloud GPU).
 
 ## Automation Boundary
 
 ARIS can automate:
 - inspect `data.yaml`, class names, image/label folders, and label health
 - propose baseline and tuning grids
-- generate training commands for SSH remote or ClearML Agent submission
-- collect metrics and artifacts from ClearML
+- generate training commands for Linux SSH or Windows PowerShell-over-SSH execution
+- collect metrics from local `runs/<task>/metrics.json`
 - compare runs and recommend next experiment wave
 - turn validated evidence into paper, patent, grant, poster, and slides material
 
 ARIS must pause before:
 - changing dataset taxonomy or relabeling policy
-- making expensive cloud GPU purchases
 - claiming a method is novel or paper-worthy from weak results
 - replacing the detector framework
 - landing invasive architecture/loss changes without baseline evidence
@@ -54,7 +48,7 @@ results/
 ### Phase 0: Project Scaffold
 
 Use `tools/init_yolo_project.sh` to create the project skeleton. Verify:
-- `.gitignore` covers datasets, weights, ClearML cache
+- `.gitignore` covers datasets, weights
 - `experiments/` for run manifests
 - `results/` for summarized outputs
 - `AGENTS.md` with server config
@@ -62,7 +56,7 @@ Use `tools/init_yolo_project.sh` to create the project skeleton. Verify:
 ### Phase 1: Data Health Check
 
 Inspect `data.yaml` (located with the dataset, e.g. `~/datasets/defect/data.yaml`):
-- train/val/test paths resolve on Linux
+- train/val/test paths resolve on the selected target OS
 - class count matches `names`
 - labels have 5 YOLO columns, normalized coordinates
 - report empty labels, missing images, duplicates, extreme imbalance, tiny boxes
@@ -75,10 +69,9 @@ python tools/yolo_data_health.py ~/datasets/defect/data.yaml \
 
 ### Phase 2: Server Environment
 
-**linux-lab**: Run `tools/setup_linux_server.sh` on the server (or via SSH from Mac).
-**cloud-gpu**: Run `tools/cloud_init.sh` after provisioning the instance.
+Run `tools/setup_linux_server.sh` on Linux, or `tools/setup_windows_server.ps1` on Windows.
 
-Verify: CUDA visible, ClearML connected, watchdog running.
+Verify: CUDA visible, watchdog running.
 
 ### Phase 3: Baseline Matrix
 
@@ -88,11 +81,11 @@ Minimum baseline wave:
 - `baseline_yolo11s_640` (capacity check)
 - `baseline_yolo11n_960` (small-defect sensitivity)
 
-Submit via SSH or ClearML Agent. Track all in ClearML.
+Submit via SSH. Metrics saved to `runs/<task>/metrics.json`.
 
 ### Phase 4: Result Review (Codex)
 
-Codex reads ClearML metrics and produces:
+Codex reads local metrics.json files and produces:
 - `results/RUN_TABLE.csv`
 - `results/RESULTS_SUMMARY.md`
 - `results/NEXT_EXPERIMENTS.md`
@@ -122,5 +115,5 @@ Must separate: confirmed evidence / plausible interpretation / unsupported claim
 - GitHub: code/config/reports only, no datasets or weights
 - Always smoke test (1 epoch) before batch experiments
 - No architecture/loss changes without baseline evidence
-- Cloud GPU: always set auto-shutdown timer
 - Claude Code executes, Codex reviews — maintain separation of concerns
+- Training metrics in `runs/<task>/metrics.json` — Codex reads them for review

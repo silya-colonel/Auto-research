@@ -1,4 +1,3 @@
 ultralytics
-clearml
-clearml-agent
 pyyaml
+kagglehub

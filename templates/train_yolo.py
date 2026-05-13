@@ -1,53 +1,53 @@
-"""YOLO11 训练/评估/导出 — ClearML 集成
+"""YOLO11 训练/评估/导出/推理
 
 用法:
   # 训练
-  python train_yolo_clearml.py train --task-name baseline_yolo11n_640 \
+  python train_yolo.py train --task-name baseline_yolo11n_640 \
     --data-yaml ~/datasets/defect/data.yaml --model yolo11n.pt --epochs 100
 
   # 断点续训
-  python train_yolo_clearml.py train --task-name baseline_yolo11n_640 --resume \
+  python train_yolo.py train --task-name baseline_yolo11n_640 --resume \
     --data-yaml ~/datasets/defect/data.yaml
 
   # 评估已有模型
-  python train_yolo_clearml.py val --weights runs/yolo/baseline/weights/best.pt \
+  python train_yolo.py val --weights runs/yolo/baseline/weights/best.pt \
     --data-yaml ~/datasets/defect/data.yaml
 
   # 导出 ONNX/TensorRT
-  python train_yolo_clearml.py export --weights runs/yolo/baseline/weights/best.pt \
+  python train_yolo.py export --weights runs/yolo/baseline/weights/best.pt \
     --format onnx
 
   # 推理单张图片
-  python train_yolo_clearml.py predict --weights runs/yolo/baseline/weights/best.pt \
+  python train_yolo.py predict --weights runs/yolo/baseline/weights/best.pt \
     --source ~/test.jpg --imgsz 640
 
-  # 训练完成后自动关机(云GPU)
-  python train_yolo_clearml.py train --task-name exp_v2 \
-    --data-yaml ~/datasets/defect/data.yaml --model yolo11n.pt --shutdown-when-done
+  # 训练完成后自动关机
+  python train_yolo.py train --task-name exp_v2 \
+    --data-yaml ~/datasets/defect/data.yaml --model yolo11n.pt --shutdown
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import subprocess
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 
-from clearml import Task, Logger
 from ultralytics import YOLO
 
 
 # ── CLI ──────────────────────────────────────────────────────────
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(description="YOLO11 + ClearML 训练/评估/导出/推理")
+    p = argparse.ArgumentParser(description="YOLO11 训练/评估/导出/推理")
     sub = p.add_subparsers(dest="command", required=True)
 
     # train
     t = sub.add_parser("train", help="训练模型")
-    t.add_argument("--project-name", default="yolo")
     t.add_argument("--task-name", required=True)
     t.add_argument("--data-yaml", required=True)
     t.add_argument("--model", default="yolo11n.pt")
@@ -59,7 +59,7 @@ def build_parser() -> argparse.ArgumentParser:
     t.add_argument("--seed", type=int, default=42)
     t.add_argument("--runs-dir", default="runs/yolo")
     t.add_argument("--resume", action="store_true")
-    t.add_argument("--shutdown-when-done", action="store_true")
+    t.add_argument("--shutdown", action="store_true", help="训练完成后自动关机")
     t.add_argument("--max-retries", type=int, default=2)
     t.add_argument("--extra", nargs="*", default=[])
 
@@ -71,7 +71,6 @@ def build_parser() -> argparse.ArgumentParser:
     v.add_argument("--batch", type=int, default=16)
     v.add_argument("--device", default=None)
     v.add_argument("--save-json", action="store_true", help="保存COCO格式结果")
-    v.add_argument("--task-name", default=None, help="ClearML task name (可选)")
 
     # export
     e = sub.add_parser("export", help="导出模型")
@@ -130,15 +129,27 @@ def do_shutdown():
     subprocess.run(["sudo", "shutdown", "-h", "now"])
 
 
+def save_metrics(save_dir: str, task_name: str, metrics: dict):
+    """保存训练指标到本地 JSON 文件"""
+    p = Path(save_dir)
+    p.mkdir(parents=True, exist_ok=True)
+    record = {
+        "task_name": task_name,
+        "timestamp": datetime.now().isoformat(),
+        "metrics": metrics,
+    }
+    metrics_file = p / "metrics.json"
+    with open(metrics_file, "w") as f:
+        json.dump(record, f, indent=2, ensure_ascii=False)
+    print(f"→ 指标已保存: {metrics_file}")
+
+
 # ── Commands ─────────────────────────────────────────────────────
 
 def cmd_train(args):
     data_yaml = Path(args.data_yaml)
     if not data_yaml.exists():
         sys.exit(f"data.yaml 不存在: {data_yaml}")
-
-    task = Task.init(project_name=args.project_name, task_name=args.task_name)
-    task.connect(vars(args))
 
     model = YOLO(args.model)
 
@@ -173,36 +184,39 @@ def cmd_train(args):
             print(f"训练失败 (attempt {attempt}): {e}")
             if attempt > args.max_retries:
                 notify("训练失败", f"{args.task_name}: {e}")
-                task.close()
                 sys.exit(1)
             time.sleep(30)
 
     save_dir = getattr(results, "save_dir", None) or str(
         Path(args.runs_dir) / args.task_name
     )
-    task.upload_artifact("ultralytics_results", artifact_object=save_dir)
 
+    # 保存训练指标到本地 JSON
+    mAP = getattr(getattr(results, "box", None), "map50", None)
+    metrics = {
+        "mAP50": round(mAP, 4) if mAP else None,
+    }
+
+    # 尝试运行验证并记录更多指标
     try:
         val_results = model.val()
-        metrics = {
-            "mAP50": float(val_results.box.map50),
-            "mAP50-95": float(val_results.box.map),
-            "precision": float(val_results.box.mp),
-            "recall": float(val_results.box.mr),
-        }
-        for k, v in metrics.items():
-            Logger.current_logger().report_scalar("val", k, iteration=0, value=v)
-        task.upload_artifact("best_weights", artifact_object=f"{save_dir}/weights/best.pt")
-    except Exception:
-        pass
+        metrics.update({
+            "mAP50": round(float(val_results.box.map50), 4),
+            "mAP50-95": round(float(val_results.box.map), 4),
+            "precision": round(float(val_results.box.mp), 4),
+            "recall": round(float(val_results.box.mr), 4),
+        })
+        print(f"mAP50: {val_results.box.map50:.4f}  mAP50-95: {val_results.box.map:.4f}")
+    except Exception as e:
+        print(f"验证失败: {e}")
 
-    mAP = getattr(getattr(results, "box", None), "map50", None)
-    msg = f"{args.task_name}: 完成 (mAP50={mAP:.3f})" if mAP else f"{args.task_name}: 完成"
+    save_metrics(save_dir, args.task_name, metrics)
+
+    msg = f"{args.task_name}: 完成 (mAP50={metrics.get('mAP50', 'N/A')})"
     print(msg)
     notify("训练完成", msg)
-    task.close()
 
-    if args.shutdown_when_done:
+    if args.shutdown:
         do_shutdown() if os.geteuid() == 0 else subprocess.run(
             ["sudo", "shutdown", "-h", "+2"], capture_output=True)
 
@@ -220,17 +234,6 @@ def cmd_val(args):
     print(f"mAP50-95: {results.box.map:.4f}")
     print(f"Precision: {results.box.mp:.4f}")
     print(f"Recall: {results.box.mr:.4f}")
-
-    if args.task_name:
-        task = Task.init(project_name="yolo", task_name=args.task_name)
-        for k, v in {
-            "mAP50": float(results.box.map50),
-            "mAP50-95": float(results.box.map),
-            "precision": float(results.box.mp),
-            "recall": float(results.box.mr),
-        }.items():
-            Logger.current_logger().report_scalar("val", k, iteration=0, value=v)
-        task.close()
 
 
 def cmd_export(args):

@@ -26,4 +26,4 @@ last_updated: ""     # YYYY-MM-DD HH:mm — auto-updated by skills on every outp
 
 ## Compute Budget
 
-- {budget details, e.g., "8x A100 for 24h via vast.ai"}
+- {budget details, e.g., "single RTX 4090, 24h max per experiment"}
