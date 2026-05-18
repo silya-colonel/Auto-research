@@ -1,234 +1,313 @@
-"""YOLO11 训练/评估/导出/推理
+r"""YOLO train / val / export / predict helper for the Windows workflow.
 
-用法:
-  # 训练
-  python train_yolo.py train --task-name baseline_yolo11n_640 \
-    --data-yaml ~/datasets/defect/data.yaml --model yolo11n.pt --epochs 100
+Examples:
+  D:\app\conda\envs\sy\python.exe train_yolo.py train --task-name baseline_magnetic_tile \
+    --data-yaml data\magnetic-tile-surface-defects\data.yaml --model yolo11n.pt --epochs 100
 
-  # 断点续训
-  python train_yolo.py train --task-name baseline_yolo11n_640 --resume \
-    --data-yaml ~/datasets/defect/data.yaml
+  D:\app\conda\envs\sy\python.exe train_yolo.py train --task-name baseline_magnetic_tile --resume \
+    --data-yaml data\magnetic-tile-surface-defects\data.yaml
 
-  # 评估已有模型
-  python train_yolo.py val --weights runs/yolo/baseline/weights/best.pt \
-    --data-yaml ~/datasets/defect/data.yaml
+  D:\app\conda\envs\sy\python.exe train_yolo.py val --weights runs\yolo\baseline_magnetic_tile\weights\best.pt \
+    --data-yaml data\magnetic-tile-surface-defects\data.yaml
 
-  # 导出 ONNX/TensorRT
-  python train_yolo.py export --weights runs/yolo/baseline/weights/best.pt \
+  D:\app\conda\envs\sy\python.exe train_yolo.py export --weights runs\yolo\baseline_magnetic_tile\weights\best.pt \
     --format onnx
 
-  # 推理单张图片
-  python train_yolo.py predict --weights runs/yolo/baseline/weights/best.pt \
-    --source ~/test.jpg --imgsz 640
-
-  # 训练完成后自动关机
-  python train_yolo.py train --task-name exp_v2 \
-    --data-yaml ~/datasets/defect/data.yaml --model yolo11n.pt --shutdown
+  D:\app\conda\envs\sy\python.exe train_yolo.py predict --weights runs\yolo\baseline_magnetic_tile\weights\best.pt \
+    --source data\magnetic-tile-surface-defects\images\val --imgsz 640
 """
 
 from __future__ import annotations
 
 import argparse
 import json
-import os
 import subprocess
 import sys
 import time
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
-from ultralytics import YOLO
+from ultralytics import YOLO, settings
+
+from tools.yolo_custom_modules import (
+    patch_detection_cls_loss,
+    patch_detection_iou_loss,
+    register_yolo_modules,
+)
+from tools.clearml_remote import maybe_execute_remotely
 
 
-# ── CLI ──────────────────────────────────────────────────────────
+PROJECT_ROOT = Path(__file__).resolve().parent
+register_yolo_modules()
+
+# The project policy is to sync all experiments to ClearML by default.
+settings.update({"clearml": True, "mlflow": False})
+
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(description="YOLO11 训练/评估/导出/推理")
-    sub = p.add_subparsers(dest="command", required=True)
+    parser = argparse.ArgumentParser(description="YOLO train / val / export / predict")
+    sub = parser.add_subparsers(dest="command", required=True)
 
-    # train
-    t = sub.add_parser("train", help="训练模型")
-    t.add_argument("--task-name", required=True)
-    t.add_argument("--data-yaml", required=True)
-    t.add_argument("--model", default="yolo11n.pt")
-    t.add_argument("--imgsz", type=int, default=640)
-    t.add_argument("--epochs", type=int, default=100)
-    t.add_argument("--batch", default="-1")
-    t.add_argument("--device", default=None)
-    t.add_argument("--workers", type=int, default=8)
-    t.add_argument("--seed", type=int, default=42)
-    t.add_argument("--runs-dir", default="runs/yolo")
-    t.add_argument("--resume", action="store_true")
-    t.add_argument("--shutdown", action="store_true", help="训练完成后自动关机")
-    t.add_argument("--max-retries", type=int, default=2)
-    t.add_argument("--extra", nargs="*", default=[])
+    train = sub.add_parser("train", help="Train a YOLO model")
+    train.add_argument("--task-name", required=True)
+    train.add_argument("--data-yaml", required=True)
+    train.add_argument("--model", default="yolo11n.pt")
+    train.add_argument("--pretrained-weights", default=None, help="Optional weights to load before training a YAML model")
+    train.add_argument("--imgsz", type=int, default=640)
+    train.add_argument("--epochs", type=int, default=100)
+    train.add_argument("--batch", default="-1")
+    train.add_argument("--device", default=None)
+    train.add_argument("--workers", type=int, default=8)
+    train.add_argument("--seed", type=int, default=42)
+    train.add_argument("--runs-dir", default="runs/yolo")
+    train.add_argument("--resume", action="store_true")
+    train.add_argument("--shutdown", action="store_true", help="Shut down Windows 120 seconds after training")
+    train.add_argument("--max-retries", type=int, default=2)
+    train.add_argument("--enable-clearml", action="store_true", help="Enable Ultralytics ClearML integration")
+    train.add_argument("--disable-clearml", action="store_true", help="Disable Ultralytics ClearML integration")
+    train.add_argument("--clearml-remote", action="store_true", help="Submit this training task to a ClearML queue and exit locally")
+    train.add_argument("--clearml-queue", default="gpu-any", help="ClearML queue name for remote execution")
+    train.add_argument("--clearml-project", default="yolo-welding-defect", help="ClearML project name for remote execution")
+    train.add_argument("--enable-mlflow", action="store_true", help="Enable Ultralytics MLflow integration")
+    train.add_argument("--extra", nargs="*", default=[], help="Extra YOLO args in key=value form")
 
-    # val
-    v = sub.add_parser("val", help="评估模型")
-    v.add_argument("--weights", required=True)
-    v.add_argument("--data-yaml", required=True)
-    v.add_argument("--imgsz", type=int, default=640)
-    v.add_argument("--batch", type=int, default=16)
-    v.add_argument("--device", default=None)
-    v.add_argument("--save-json", action="store_true", help="保存COCO格式结果")
+    val = sub.add_parser("val", help="Validate a YOLO model")
+    val.add_argument("--weights", required=True)
+    val.add_argument("--data-yaml", required=True)
+    val.add_argument("--imgsz", type=int, default=640)
+    val.add_argument("--batch", type=int, default=16)
+    val.add_argument("--device", default=None)
+    val.add_argument("--save-json", action="store_true", help="Save COCO-format results")
+    val.add_argument("--output-dir", default="runs/val")
 
-    # export
-    e = sub.add_parser("export", help="导出模型")
-    e.add_argument("--weights", required=True)
-    e.add_argument("--format", default="onnx", choices=["onnx", "engine", "tflite", "coreml"])
-    e.add_argument("--imgsz", type=int, default=640)
-    e.add_argument("--half", action="store_true", help="FP16")
-    e.add_argument("--dynamic", action="store_true", help="动态batch")
+    export = sub.add_parser("export", help="Export a YOLO model")
+    export.add_argument("--weights", required=True)
+    export.add_argument("--format", default="onnx", choices=["onnx", "engine", "tflite", "coreml"])
+    export.add_argument("--imgsz", type=int, default=640)
+    export.add_argument("--half", action="store_true", help="FP16 export")
+    export.add_argument("--dynamic", action="store_true", help="Dynamic batch export")
 
-    # predict
-    pr = sub.add_parser("predict", help="推理")
-    pr.add_argument("--weights", required=True)
-    pr.add_argument("--source", required=True)
-    pr.add_argument("--imgsz", type=int, default=640)
-    pr.add_argument("--conf", type=float, default=0.25)
-    pr.add_argument("--device", default=None)
-    pr.add_argument("--save", action="store_true", default=True)
-    pr.add_argument("--output-dir", default="runs/predict")
+    predict = sub.add_parser("predict", help="Run inference")
+    predict.add_argument("--weights", required=True)
+    predict.add_argument("--source", required=True)
+    predict.add_argument("--imgsz", type=int, default=640)
+    predict.add_argument("--conf", type=float, default=0.25)
+    predict.add_argument("--device", default=None)
+    predict.add_argument("--save", action="store_true", default=True)
+    predict.add_argument("--output-dir", default="runs/predict")
 
-    return p
+    return parser
 
 
-# ── Helpers ──────────────────────────────────────────────────────
+def resolve_project_path(value: str | Path) -> Path:
+    path = Path(value)
+    if path.is_absolute():
+        return path
+    return (PROJECT_ROOT / path).resolve()
 
-def coerce_batch(v: str):
+
+def coerce_batch(value: str) -> int | float:
     try:
-        return int(v)
+        return int(value)
     except ValueError:
-        return float(v)
+        return float(value)
 
 
-def parse_extra(items: list[str]) -> dict:
-    d = {}
+def parse_extra_value(value: str) -> Any:
+    lowered = value.lower()
+    if lowered == "true":
+        return True
+    if lowered == "false":
+        return False
+    try:
+        return int(value)
+    except ValueError:
+        pass
+    try:
+        return float(value)
+    except ValueError:
+        return value
+
+
+def parse_extra(items: list[str]) -> dict[str, Any]:
+    extra: dict[str, Any] = {}
     for item in items:
         if "=" not in item:
-            raise ValueError(f"extra 参数需要 key=value 格式: {item}")
-        k, val = item.split("=", 1)
-        d[k] = val
-    return d
+            raise ValueError(f"--extra expects key=value, got: {item}")
+        key, value = item.split("=", 1)
+        extra[key] = parse_extra_value(value)
+    return extra
 
 
-def notify(title: str, message: str):
-    if sys.platform == "darwin":
-        subprocess.run([
-            "osascript", "-e",
-            f'display notification "{message}" with title "{title}"'
-        ], capture_output=True)
-    elif sys.platform == "linux":
-        subprocess.run(["notify-send", title, message], capture_output=True)
+def configure_ultralytics_integrations(enable_clearml: bool = True, enable_mlflow: bool = False) -> None:
+    settings.update({
+        "clearml": bool(enable_clearml),
+        "mlflow": bool(enable_mlflow),
+    })
 
 
-def do_shutdown():
-    subprocess.run(["wall", "训练任务完成，系统将在1分钟后关机"], capture_output=True)
-    subprocess.run(["sync"], capture_output=True)
-    time.sleep(60)
-    subprocess.run(["sudo", "shutdown", "-h", "now"])
+def notify(title: str, message: str) -> None:
+    print(f"[{title}] {message}")
 
 
-def save_metrics(save_dir: str, task_name: str, metrics: dict):
-    """保存训练指标到本地 JSON 文件"""
-    p = Path(save_dir)
-    p.mkdir(parents=True, exist_ok=True)
+def do_shutdown() -> None:
+    if sys.platform != "win32":
+        print("[shutdown] Skipped because this command is intended for Windows.")
+        return
+    print("[shutdown] Windows will shut down in 120 seconds. Run `shutdown /a` to cancel.")
+    subprocess.run(["shutdown", "/s", "/t", "120"], capture_output=True, check=False)
+
+
+def save_metrics(save_dir: Path, task_name: str, metrics: dict[str, Any]) -> None:
+    save_dir.mkdir(parents=True, exist_ok=True)
     record = {
         "task_name": task_name,
         "timestamp": datetime.now().isoformat(),
         "metrics": metrics,
     }
-    metrics_file = p / "metrics.json"
-    with open(metrics_file, "w") as f:
-        json.dump(record, f, indent=2, ensure_ascii=False)
-    print(f"→ 指标已保存: {metrics_file}")
+    metrics_file = save_dir / "metrics.json"
+    metrics_file.write_text(json.dumps(record, indent=2, ensure_ascii=False), encoding="utf-8")
+    print(f"metrics saved: {metrics_file}")
 
 
-# ── Commands ─────────────────────────────────────────────────────
+def collect_per_class_metrics(val_results: Any) -> dict[str, dict[str, float]]:
+    per_class: dict[str, dict[str, float]] = {}
+    names = getattr(val_results, "names", {}) or {}
+    box = getattr(val_results, "box", None)
+    if box is None or not hasattr(box, "class_result"):
+        return per_class
+    for class_id, class_name in names.items():
+        try:
+            precision, recall, map50, map5095 = box.class_result(int(class_id))
+        except Exception:
+            continue
+        per_class[str(class_name)] = {
+            "precision": round(float(precision), 4),
+            "recall": round(float(recall), 4),
+            "mAP50": round(float(map50), 4),
+            "mAP50-95": round(float(map5095), 4),
+        }
+    return per_class
 
-def cmd_train(args):
-    data_yaml = Path(args.data_yaml)
+
+def cmd_train(args: argparse.Namespace) -> None:
+    clearml_enabled = (not args.disable_clearml) or args.enable_clearml
+    configure_ultralytics_integrations(clearml_enabled, args.enable_mlflow)
+
+    maybe_execute_remotely(
+        enabled=args.clearml_remote,
+        project_name=args.clearml_project,
+        task_name=args.task_name,
+        queue_name=args.clearml_queue,
+        clone=False,
+        exit_process=True,
+    )
+
+    data_yaml = resolve_project_path(args.data_yaml)
     if not data_yaml.exists():
-        sys.exit(f"data.yaml 不存在: {data_yaml}")
+        sys.exit(f"data.yaml not found: {data_yaml}")
+
+    runs_dir = resolve_project_path(args.runs_dir)
+    extra = parse_extra(args.extra)
+    custom_iou_loss = extra.pop("custom_iou_loss", None)
+    custom_cls_loss = extra.pop("custom_cls_loss", None)
+    focal_gamma = float(extra.pop("focal_gamma", 1.5))
+    focal_alpha = float(extra.pop("focal_alpha", 0.25))
+    patch_detection_iou_loss(str(custom_iou_loss) if custom_iou_loss else None)
+    patch_detection_cls_loss(str(custom_cls_loss) if custom_cls_loss else None, gamma=focal_gamma, alpha=focal_alpha)
 
     model = YOLO(args.model)
 
     if args.resume:
-        last_pt = Path(args.runs_dir) / args.task_name / "weights" / "last.pt"
+        last_pt = runs_dir / args.task_name / "weights" / "last.pt"
         if last_pt.exists():
-            print(f"→ 续训: {last_pt}")
+            print(f"resuming from: {last_pt}")
             model = YOLO(str(last_pt))
         else:
-            print(f"→ 未找到 {last_pt}，从头训练")
+            print(f"resume checkpoint not found, starting fresh: {last_pt}")
+    elif args.pretrained_weights:
+        pretrained_weights = resolve_project_path(args.pretrained_weights)
+        if not pretrained_weights.exists():
+            sys.exit(f"pretrained weights not found: {pretrained_weights}")
+        print(f"loading pretrained weights: {pretrained_weights}")
+        model.load(str(pretrained_weights))
 
-    kwargs = {
+    kwargs: dict[str, Any] = {
         "data": str(data_yaml),
         "imgsz": args.imgsz,
         "epochs": args.epochs,
         "batch": coerce_batch(args.batch),
         "workers": args.workers,
         "seed": args.seed,
-        "project": args.runs_dir,
+        "project": str(runs_dir),
         "name": args.task_name,
     }
     if args.device:
         kwargs["device"] = args.device
-    kwargs.update(parse_extra(args.extra))
+    kwargs.update(extra)
 
+    results = None
     for attempt in range(1, args.max_retries + 2):
         try:
-            print(f"\n── {args.task_name} (attempt {attempt}/{args.max_retries + 1}) ──")
+            print(f"\n-- {args.task_name} (attempt {attempt}/{args.max_retries + 1}) --")
             results = model.train(**kwargs)
             break
-        except Exception as e:
-            print(f"训练失败 (attempt {attempt}): {e}")
+        except Exception as exc:
+            print(f"training failed (attempt {attempt}): {exc}")
             if attempt > args.max_retries:
-                notify("训练失败", f"{args.task_name}: {e}")
+                notify("training failed", f"{args.task_name}: {exc}")
                 sys.exit(1)
             time.sleep(30)
 
-    save_dir = getattr(results, "save_dir", None) or str(
-        Path(args.runs_dir) / args.task_name
-    )
+    save_dir = Path(getattr(results, "save_dir", runs_dir / args.task_name)).resolve()
+    metrics: dict[str, Any] = {}
 
-    # 保存训练指标到本地 JSON
-    mAP = getattr(getattr(results, "box", None), "map50", None)
-    metrics = {
-        "mAP50": round(mAP, 4) if mAP else None,
-    }
+    train_map50 = getattr(getattr(results, "box", None), "map50", None)
+    if train_map50 is not None:
+        metrics["mAP50"] = round(float(train_map50), 4)
 
-    # 尝试运行验证并记录更多指标
     try:
-        val_results = model.val()
+        val_results = model.val(
+            data=str(data_yaml),
+            imgsz=args.imgsz,
+            batch=16,
+            device=args.device,
+            project=str(resolve_project_path("runs/val")),
+            name=args.task_name,
+        )
         metrics.update({
             "mAP50": round(float(val_results.box.map50), 4),
             "mAP50-95": round(float(val_results.box.map), 4),
             "precision": round(float(val_results.box.mp), 4),
             "recall": round(float(val_results.box.mr), 4),
+            "per_class": collect_per_class_metrics(val_results),
         })
         print(f"mAP50: {val_results.box.map50:.4f}  mAP50-95: {val_results.box.map:.4f}")
-    except Exception as e:
-        print(f"验证失败: {e}")
+    except Exception as exc:
+        print(f"validation failed: {exc}")
 
     save_metrics(save_dir, args.task_name, metrics)
 
-    msg = f"{args.task_name}: 完成 (mAP50={metrics.get('mAP50', 'N/A')})"
-    print(msg)
-    notify("训练完成", msg)
+    message = f"{args.task_name}: done (mAP50={metrics.get('mAP50', 'N/A')})"
+    print(message)
+    notify("training complete", message)
 
     if args.shutdown:
-        do_shutdown() if os.geteuid() == 0 else subprocess.run(
-            ["sudo", "shutdown", "-h", "+2"], capture_output=True)
+        do_shutdown()
 
 
-def cmd_val(args):
-    model = YOLO(args.weights)
+def cmd_val(args: argparse.Namespace) -> None:
+    data_yaml = resolve_project_path(args.data_yaml)
+    output_dir = resolve_project_path(args.output_dir)
+    model = YOLO(str(resolve_project_path(args.weights)))
     results = model.val(
-        data=args.data_yaml,
+        data=str(data_yaml),
         imgsz=args.imgsz,
         batch=args.batch,
         device=args.device,
         save_json=args.save_json,
+        project=str(output_dir),
     )
     print(f"mAP50: {results.box.map50:.4f}")
     print(f"mAP50-95: {results.box.map:.4f}")
@@ -236,27 +315,25 @@ def cmd_val(args):
     print(f"Recall: {results.box.mr:.4f}")
 
 
-def cmd_export(args):
-    model = YOLO(args.weights)
+def cmd_export(args: argparse.Namespace) -> None:
+    model = YOLO(str(resolve_project_path(args.weights)))
     model.export(format=args.format, imgsz=args.imgsz, half=args.half, dynamic=args.dynamic)
-    print(f"→ 导出完成: {args.weights.replace('.pt', f'.{args.format}')}")
+    print(f"export complete: {args.weights}")
 
 
-def cmd_predict(args):
-    model = YOLO(args.weights)
+def cmd_predict(args: argparse.Namespace) -> None:
+    model = YOLO(str(resolve_project_path(args.weights)))
     results = model.predict(
-        source=args.source,
+        source=str(resolve_project_path(args.source)),
         imgsz=args.imgsz,
         conf=args.conf,
         device=args.device,
         save=args.save,
-        project=args.output_dir,
+        project=str(resolve_project_path(args.output_dir)),
     )
-    for r in results:
-        print(f"  {r.path} → {len(r.boxes)} 个检测结果")
+    for result in results:
+        print(f"{result.path} -> {len(result.boxes)} detections")
 
-
-# ── Main ─────────────────────────────────────────────────────────
 
 COMMANDS = {
     "train": cmd_train,
@@ -265,6 +342,7 @@ COMMANDS = {
     "predict": cmd_predict,
 }
 
+
 if __name__ == "__main__":
-    args = build_parser().parse_args()
-    COMMANDS[args.command](args)
+    parsed_args = build_parser().parse_args()
+    COMMANDS[parsed_args.command](parsed_args)

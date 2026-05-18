@@ -1,0 +1,139 @@
+project: yolo11_welding_defect
+updated: "2026-05-18"
+
+primary_metrics:
+  - mAP50-95
+  - small_or_elongated_class_recall
+
+auxiliary_metrics:
+  - mAP50
+  - precision
+  - recall
+  - per_class_AP
+  - per_class_recall
+  - params
+  - FLOPs
+  - FPS_or_latency
+
+global_training_defaults:
+  model_family: YOLO11
+  clearml:
+    remote_queue: gpu-any
+    project: yolo-welding-defect
+    submit_flag: "--clearml-remote"
+  base_models:
+    - yolo11n.pt
+    - yolo11s.pt
+  image_sizes:
+    - 640
+    - 960
+  seeds:
+    - 42
+  epochs_screen: 20
+  epochs_confirm: 100
+  python: "D:/app/conda/envs/sy/python.exe"
+  training_entry: "train_yolo.py"
+
+phases:
+  - id: P0
+    name: dataset_standardization
+    goal: "Make every selected dataset trainable and auditable."
+    runs:
+      - convert_main_welding_coco_to_yolo
+      - convert_xray_coco_to_yolo
+      - verify_neu_det_data_yaml
+      - verify_magnetic_tile_ready
+      - inspect_radiographs_welding_classes
+
+  - id: P1
+    name: main_dataset_baselines
+    goal: "Establish YOLO11 baselines on the main welding dataset."
+    dataset: welding_defect_detection_coco
+    variants:
+      - id: baseline_yolo11n_640
+        model: yolo11n.pt
+        imgsz: 640
+      - id: baseline_yolo11n_960
+        model: yolo11n.pt
+        imgsz: 960
+      - id: baseline_yolo11s_640
+        model: yolo11s.pt
+        imgsz: 640
+
+  - id: P2
+    name: localization_loss_screen
+    goal: "Find a loss direction that improves localization quality without hurting recall stability."
+    dataset: welding_defect_detection_coco
+    base_model: yolo11n.pt
+    imgsz: 640
+    epochs: 20
+    variants:
+      - id: loss_diou
+        component: DIoU
+      - id: loss_shape_iou
+        component: Shape-IoU_or_shape_aware_proxy
+      - id: loss_small_weight
+        component: bounded_small_object_weight
+      - id: loss_aspect_weight
+        component: elongated_box_aspect_term
+      - id: loss_wdloss_full
+        component: morphology_aware_combined_loss
+
+  - id: P3
+    name: feature_module_screen
+    goal: "Screen lightweight feature modules for small and elongated defects."
+    dataset: welding_defect_detection_coco
+    base_model: yolo11n.pt
+    imgsz: 640
+    epochs: 20
+    variants:
+      - id: module_p2_or_high_res_branch
+        component: high_resolution_small_defect_branch
+      - id: module_edge_texture_guided
+        component: edge_or_texture_guided_attention
+      - id: module_lightweight_neck_attention
+        component: lightweight_neck_attention
+      - id: module_small_defect_fusion
+        component: selected_feature_fusion_module
+
+  - id: P4
+    name: combined_confirmation
+    goal: "Confirm the selected loss and selected module with longer training."
+    dataset: welding_defect_detection_coco
+    epochs: 100
+    variants:
+      - id: selected_loss_only
+      - id: selected_module_only
+      - id: selected_loss_plus_module
+      - id: selected_loss_plus_module_plus_safe_aug
+
+  - id: P5
+    name: transfer_validation
+    goal: "Train baseline and improved variants on each transfer dataset and compare relative gains."
+    datasets:
+      - neu_det
+      - magnetic_tile_surface_defects
+      - x_ray_coco
+    required_variants:
+      - baseline_yolo11n
+      - selected_loss_only
+      - selected_module_only
+      - selected_loss_plus_module
+
+  - id: P6
+    name: efficiency_and_deployment
+    goal: "Report model cost and practical efficiency."
+    metrics:
+      - params
+      - FLOPs
+      - FPS_or_latency
+      - model_size
+
+claim_thresholds:
+  main_dataset_required:
+    - "mAP50-95 positive gain over baseline."
+    - "Small or elongated defect recall/AP improves or failure is explained."
+    - "Ablation shows loss and module each contribute or one is explicitly demoted."
+  transfer_required:
+    - "At least two transfer datasets show positive relative gain."
+    - "Any negative transfer result is reported and analyzed."
