@@ -1,0 +1,201 @@
+# TPS-YOLO11 experiment matrix.
+#
+# Render commands with:
+#   python tools/tps_experiment_matrix.py --matrix idea-stage/tps_experiment_matrix.yaml --print-commands
+
+runs:
+  # Phase 0 / 1: baseline sanity and matched baselines
+  - id: smoke_yolo11n_welding_640_e3_s42
+    phase: smoke
+    data_yaml: data/welding-defect-detection-yolo/data.yaml
+    model: yolo11n.pt
+    imgsz: 640
+    epochs: 3
+    seed: 42
+    workers: 4
+
+  - id: baseline_yolo11n_welding_640_e20_s42
+    phase: screening
+    data_yaml: data/welding-defect-detection-yolo/data.yaml
+    model: yolo11n.pt
+    imgsz: 640
+    epochs: 20
+    seed: 42
+
+  - id: baseline_yolo11n_welding_640_e100_s42
+    phase: ablation
+    data_yaml: data/welding-defect-detection-yolo/data.yaml
+    model: yolo11n.pt
+    imgsz: 640
+    epochs: 100
+    seed: 42
+
+  - id: baseline_yolo11n_welding_960_e100_s42
+    phase: final
+    data_yaml: data/welding-defect-detection-yolo/data.yaml
+    model: yolo11n.pt
+    imgsz: 960
+    epochs: 100
+    seed: 42
+
+  # Phase 4: FGDC-FPN screening and ablation
+  - id: fgdc_yolo11n_welding_640_e20_s42
+    phase: screening
+    data_yaml: data/welding-defect-detection-yolo/data.yaml
+    model: configs/tps_yolo11n_fgdc.yaml
+    pretrained_weights: yolo11n.pt
+    imgsz: 640
+    epochs: 20
+    seed: 42
+
+  - id: fgdc_yolo11n_welding_640_e100_s42
+    phase: ablation
+    data_yaml: data/welding-defect-detection-yolo/data.yaml
+    model: configs/tps_yolo11n_fgdc.yaml
+    pretrained_weights: yolo11n.pt
+    imgsz: 640
+    epochs: 100
+    seed: 42
+
+  # Phase 5: SAHB-Loss screening and ablation
+  - id: sahb_yolo11n_welding_640_e20_s42
+    phase: screening
+    data_yaml: data/welding-defect-detection-yolo/data.yaml
+    model: yolo11n.pt
+    imgsz: 640
+    epochs: 20
+    seed: 42
+    extra:
+      custom_iou_loss: sahb
+      sahb_scale_weight: 1.0
+      sahb_hard_bg_weight: 0.5
+
+  - id: sahb_yolo11n_welding_640_e100_s42
+    phase: ablation
+    data_yaml: data/welding-defect-detection-yolo/data.yaml
+    model: yolo11n.pt
+    imgsz: 640
+    epochs: 100
+    seed: 42
+    extra:
+      custom_iou_loss: sahb
+      sahb_scale_weight: 1.0
+      sahb_hard_bg_weight: 0.5
+
+  # Phase 6: full TPS-YOLO11 and loss subterm ablations
+  - id: tps_yolo11n_welding_640_e20_s42
+    phase: screening
+    data_yaml: data/welding-defect-detection-yolo/data.yaml
+    model: configs/tps_yolo11n_fgdc.yaml
+    pretrained_weights: yolo11n.pt
+    imgsz: 640
+    epochs: 20
+    seed: 42
+    extra:
+      custom_iou_loss: sahb
+      sahb_scale_weight: 1.0
+      sahb_hard_bg_weight: 0.5
+
+  - id: tps_yolo11n_welding_640_e100_s42
+    phase: ablation
+    data_yaml: data/welding-defect-detection-yolo/data.yaml
+    model: configs/tps_yolo11n_fgdc.yaml
+    pretrained_weights: yolo11n.pt
+    imgsz: 640
+    epochs: 100
+    seed: 42
+    extra:
+      custom_iou_loss: sahb
+      sahb_scale_weight: 1.0
+      sahb_hard_bg_weight: 0.5
+
+  - id: tps_no_scale_yolo11n_welding_640_e100_s42
+    phase: ablation
+    data_yaml: data/welding-defect-detection-yolo/data.yaml
+    model: configs/tps_yolo11n_fgdc.yaml
+    pretrained_weights: yolo11n.pt
+    imgsz: 640
+    epochs: 100
+    seed: 42
+    extra:
+      custom_iou_loss: sahb
+      sahb_scale_weight: 0.0
+      sahb_hard_bg_weight: 0.5
+
+  - id: tps_no_hardbg_yolo11n_welding_640_e100_s42
+    phase: ablation
+    data_yaml: data/welding-defect-detection-yolo/data.yaml
+    model: configs/tps_yolo11n_fgdc.yaml
+    pretrained_weights: yolo11n.pt
+    imgsz: 640
+    epochs: 100
+    seed: 42
+    extra:
+      custom_iou_loss: sahb
+      sahb_scale_weight: 1.0
+      sahb_hard_bg_weight: 0.0
+
+  # Phase 7: final confirmation seeds
+  - id: baseline_yolo11n_welding_640_e100_s3407
+    phase: final
+    data_yaml: data/welding-defect-detection-yolo/data.yaml
+    model: yolo11n.pt
+    imgsz: 640
+    epochs: 100
+    seed: 3407
+
+  - id: tps_yolo11n_welding_640_e100_s3407
+    phase: final
+    data_yaml: data/welding-defect-detection-yolo/data.yaml
+    model: configs/tps_yolo11n_fgdc.yaml
+    pretrained_weights: yolo11n.pt
+    imgsz: 640
+    epochs: 100
+    seed: 3407
+    extra:
+      custom_iou_loss: sahb
+      sahb_scale_weight: 1.0
+      sahb_hard_bg_weight: 0.5
+
+  - id: baseline_yolo11n_welding_640_e100_s2026
+    phase: final
+    data_yaml: data/welding-defect-detection-yolo/data.yaml
+    model: yolo11n.pt
+    imgsz: 640
+    epochs: 100
+    seed: 2026
+
+  - id: tps_yolo11n_welding_640_e100_s2026
+    phase: final
+    data_yaml: data/welding-defect-detection-yolo/data.yaml
+    model: configs/tps_yolo11n_fgdc.yaml
+    pretrained_weights: yolo11n.pt
+    imgsz: 640
+    epochs: 100
+    seed: 2026
+    extra:
+      custom_iou_loss: sahb
+      sahb_scale_weight: 1.0
+      sahb_hard_bg_weight: 0.5
+
+  # Phase 8: auxiliary X-ray pressure test after re-split
+  - id: baseline_yolo11n_xray_split_640_e100_s42
+    phase: xray
+    data_yaml: data/xray-welding-defect-yolo-split/data.yaml
+    model: yolo11n.pt
+    imgsz: 640
+    epochs: 100
+    seed: 42
+
+  - id: tps_yolo11n_xray_split_640_e100_s42
+    phase: xray
+    data_yaml: data/xray-welding-defect-yolo-split/data.yaml
+    model: configs/tps_yolo11n_fgdc.yaml
+    pretrained_weights: yolo11n.pt
+    imgsz: 640
+    epochs: 100
+    seed: 42
+    extra:
+      custom_iou_loss: sahb
+      sahb_scale_weight: 1.0
+      sahb_hard_bg_weight: 0.5

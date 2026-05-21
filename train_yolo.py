@@ -1,48 +1,31 @@
-r"""YOLO train / val / export / predict helper for the Windows workflow.
-
-Examples:
-  D:\app\conda\envs\sy\python.exe train_yolo.py train --task-name baseline_magnetic_tile \
-    --data-yaml data\magnetic-tile-surface-defects\data.yaml --model yolo11n.pt --epochs 100
-
-  D:\app\conda\envs\sy\python.exe train_yolo.py train --task-name baseline_magnetic_tile --resume \
-    --data-yaml data\magnetic-tile-surface-defects\data.yaml
-
-  D:\app\conda\envs\sy\python.exe train_yolo.py val --weights runs\yolo\baseline_magnetic_tile\weights\best.pt \
-    --data-yaml data\magnetic-tile-surface-defects\data.yaml
-
-  D:\app\conda\envs\sy\python.exe train_yolo.py export --weights runs\yolo\baseline_magnetic_tile\weights\best.pt \
-    --format onnx
-
-  D:\app\conda\envs\sy\python.exe train_yolo.py predict --weights runs\yolo\baseline_magnetic_tile\weights\best.pt \
-    --source data\magnetic-tile-surface-defects\images\val --imgsz 640
-"""
 
 from __future__ import annotations
 
 import argparse
+import os
 import json
-import subprocess
 import sys
 import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from ultralytics import YOLO, settings
-
-from tools.yolo_custom_modules import (
-    patch_detection_cls_loss,
-    patch_detection_iou_loss,
-    register_yolo_modules,
-)
 from tools.clearml_remote import maybe_execute_remotely
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
-register_yolo_modules()
+LOCAL_CACHE_ROOT = PROJECT_ROOT / ".cache"
+os.environ.setdefault("MPLCONFIGDIR", str(LOCAL_CACHE_ROOT / "matplotlib"))
+os.environ.setdefault("YOLO_CONFIG_DIR", str(LOCAL_CACHE_ROOT / "ultralytics"))
+os.environ.setdefault("XDG_CACHE_HOME", str(LOCAL_CACHE_ROOT / "xdg"))
+for cache_dir in (Path(os.environ["MPLCONFIGDIR"]), Path(os.environ["YOLO_CONFIG_DIR"]), Path(os.environ["XDG_CACHE_HOME"])):
+    cache_dir.mkdir(parents=True, exist_ok=True)
 
-# The project policy is to sync all experiments to ClearML by default.
-settings.update({"clearml": True, "mlflow": False})
+
+def load_yolo():
+    from ultralytics import YOLO
+
+    return YOLO
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -52,6 +35,10 @@ def build_parser() -> argparse.ArgumentParser:
     train = sub.add_parser("train", help="Train a YOLO model")
     train.add_argument("--task-name", required=True)
     train.add_argument("--data-yaml", required=True)
+    train.add_argument("--clearml-dataset-id", default=None, help="Optional ClearML Dataset ID to materialize before training")
+    train.add_argument("--clearml-dataset-project", default=None, help="Optional ClearML Dataset project for name/version lookup")
+    train.add_argument("--clearml-dataset-name", default=None, help="Optional ClearML Dataset name for remote materialization")
+    train.add_argument("--clearml-dataset-version", default=None, help="Optional ClearML Dataset version for remote materialization")
     train.add_argument("--model", default="yolo11n.pt")
     train.add_argument("--pretrained-weights", default=None, help="Optional weights to load before training a YAML model")
     train.add_argument("--imgsz", type=int, default=640)
@@ -62,7 +49,6 @@ def build_parser() -> argparse.ArgumentParser:
     train.add_argument("--seed", type=int, default=42)
     train.add_argument("--runs-dir", default="runs/yolo")
     train.add_argument("--resume", action="store_true")
-    train.add_argument("--shutdown", action="store_true", help="Shut down Windows 120 seconds after training")
     train.add_argument("--max-retries", type=int, default=2)
     train.add_argument("--enable-clearml", action="store_true", help="Enable Ultralytics ClearML integration")
     train.add_argument("--disable-clearml", action="store_true", help="Disable Ultralytics ClearML integration")
@@ -75,6 +61,10 @@ def build_parser() -> argparse.ArgumentParser:
     val = sub.add_parser("val", help="Validate a YOLO model")
     val.add_argument("--weights", required=True)
     val.add_argument("--data-yaml", required=True)
+    val.add_argument("--clearml-dataset-id", default=None, help="Optional ClearML Dataset ID to materialize before validation")
+    val.add_argument("--clearml-dataset-project", default=None, help="Optional ClearML Dataset project for name/version lookup")
+    val.add_argument("--clearml-dataset-name", default=None, help="Optional ClearML Dataset name for remote materialization")
+    val.add_argument("--clearml-dataset-version", default=None, help="Optional ClearML Dataset version for remote materialization")
     val.add_argument("--imgsz", type=int, default=640)
     val.add_argument("--batch", type=int, default=16)
     val.add_argument("--device", default=None)
@@ -105,6 +95,71 @@ def resolve_project_path(value: str | Path) -> Path:
     if path.is_absolute():
         return path
     return (PROJECT_ROOT / path).resolve()
+
+
+def prepare_data_yaml_for_ultralytics(data_yaml: Path) -> Path:
+    """Ultralytics may resolve `path: .` against cwd; rewrite it to the dataset dir."""
+    text = data_yaml.read_text(encoding="utf-8")
+    lines = text.splitlines()
+    changed = False
+    rewritten: list[str] = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("path:"):
+            value = stripped.split(":", 1)[1].strip().strip("'\"")
+            if value in {"", "."}:
+                rewritten.append(f"path: {data_yaml.parent}")
+                changed = True
+                continue
+        rewritten.append(line)
+    if not changed:
+        return data_yaml
+    out_dir = PROJECT_ROOT / "runs" / "prepared_data"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / f"{data_yaml.parent.name}.yaml"
+    out_path.write_text("\n".join(rewritten) + "\n", encoding="utf-8")
+    return out_path
+
+
+def maybe_materialize_clearml_dataset(args: argparse.Namespace) -> Path | None:
+    dataset_id = getattr(args, "clearml_dataset_id", None)
+    dataset_name = getattr(args, "clearml_dataset_name", None)
+    if not dataset_id and not dataset_name:
+        return None
+
+    from clearml import Dataset
+
+    if dataset_id:
+        dataset = Dataset.get(dataset_id=dataset_id)
+    else:
+        dataset = Dataset.get(
+            dataset_project=getattr(args, "clearml_dataset_project", None),
+            dataset_name=dataset_name,
+            dataset_version=getattr(args, "clearml_dataset_version", None),
+        )
+    local_copy = Path(dataset.get_local_copy()).resolve()
+    print(f"ClearML dataset materialized: {local_copy}")
+    return local_copy
+
+
+def resolve_data_yaml(args: argparse.Namespace) -> Path:
+    dataset_root = maybe_materialize_clearml_dataset(args)
+    requested = Path(args.data_yaml)
+    if dataset_root is not None:
+        candidates = [
+            dataset_root / requested.name,
+            dataset_root / requested,
+            dataset_root / "data.yaml",
+        ]
+        for candidate in candidates:
+            if candidate.exists():
+                return prepare_data_yaml_for_ultralytics(candidate.resolve())
+        raise SystemExit(f"data.yaml not found in ClearML dataset copy: {dataset_root}")
+
+    data_yaml = resolve_project_path(requested)
+    if not data_yaml.exists():
+        sys.exit(f"data.yaml not found: {data_yaml}")
+    return prepare_data_yaml_for_ultralytics(data_yaml)
 
 
 def coerce_batch(value: str) -> int | float:
@@ -141,6 +196,8 @@ def parse_extra(items: list[str]) -> dict[str, Any]:
 
 
 def configure_ultralytics_integrations(enable_clearml: bool = True, enable_mlflow: bool = False) -> None:
+    from ultralytics import settings
+
     settings.update({
         "clearml": bool(enable_clearml),
         "mlflow": bool(enable_mlflow),
@@ -149,14 +206,6 @@ def configure_ultralytics_integrations(enable_clearml: bool = True, enable_mlflo
 
 def notify(title: str, message: str) -> None:
     print(f"[{title}] {message}")
-
-
-def do_shutdown() -> None:
-    if sys.platform != "win32":
-        print("[shutdown] Skipped because this command is intended for Windows.")
-        return
-    print("[shutdown] Windows will shut down in 120 seconds. Run `shutdown /a` to cancel.")
-    subprocess.run(["shutdown", "/s", "/t", "120"], capture_output=True, check=False)
 
 
 def save_metrics(save_dir: Path, task_name: str, metrics: dict[str, Any]) -> None:
@@ -192,7 +241,15 @@ def collect_per_class_metrics(val_results: Any) -> dict[str, dict[str, float]]:
 
 
 def cmd_train(args: argparse.Namespace) -> None:
-    clearml_enabled = (not args.disable_clearml) or args.enable_clearml
+    YOLO = load_yolo()
+    from tools.yolo_custom_modules import (
+        patch_detection_cls_loss,
+        patch_detection_iou_loss,
+        register_yolo_modules,
+    )
+
+    register_yolo_modules()
+    clearml_enabled = (args.enable_clearml or args.clearml_remote) and not args.disable_clearml
     configure_ultralytics_integrations(clearml_enabled, args.enable_mlflow)
 
     maybe_execute_remotely(
@@ -204,9 +261,7 @@ def cmd_train(args: argparse.Namespace) -> None:
         exit_process=True,
     )
 
-    data_yaml = resolve_project_path(args.data_yaml)
-    if not data_yaml.exists():
-        sys.exit(f"data.yaml not found: {data_yaml}")
+    data_yaml = resolve_data_yaml(args)
 
     runs_dir = resolve_project_path(args.runs_dir)
     extra = parse_extra(args.extra)
@@ -214,7 +269,22 @@ def cmd_train(args: argparse.Namespace) -> None:
     custom_cls_loss = extra.pop("custom_cls_loss", None)
     focal_gamma = float(extra.pop("focal_gamma", 1.5))
     focal_alpha = float(extra.pop("focal_alpha", 0.25))
-    patch_detection_iou_loss(str(custom_iou_loss) if custom_iou_loss else None)
+    sahb_scale_weight = float(extra.pop("sahb_scale_weight", 1.0))
+    sahb_hard_bg_weight = float(extra.pop("sahb_hard_bg_weight", 0.0))
+    skip_final_val = bool(extra.pop("skip_final_val", False))
+    if (
+        custom_iou_loss
+        and str(custom_iou_loss).lower() == "sahb"
+        and sahb_hard_bg_weight > 0
+        and custom_cls_loss is None
+    ):
+        custom_cls_loss = "focal"
+        focal_gamma = max(focal_gamma, 1.5 + sahb_hard_bg_weight)
+    patch_detection_iou_loss(
+        str(custom_iou_loss) if custom_iou_loss else None,
+        scale_weight=sahb_scale_weight,
+        hard_bg_weight=sahb_hard_bg_weight,
+    )
     patch_detection_cls_loss(str(custom_cls_loss) if custom_cls_loss else None, gamma=focal_gamma, alpha=focal_alpha)
 
     model = YOLO(args.model)
@@ -267,25 +337,28 @@ def cmd_train(args: argparse.Namespace) -> None:
     if train_map50 is not None:
         metrics["mAP50"] = round(float(train_map50), 4)
 
-    try:
-        val_results = model.val(
-            data=str(data_yaml),
-            imgsz=args.imgsz,
-            batch=16,
-            device=args.device,
-            project=str(resolve_project_path("runs/val")),
-            name=args.task_name,
-        )
-        metrics.update({
-            "mAP50": round(float(val_results.box.map50), 4),
-            "mAP50-95": round(float(val_results.box.map), 4),
-            "precision": round(float(val_results.box.mp), 4),
-            "recall": round(float(val_results.box.mr), 4),
-            "per_class": collect_per_class_metrics(val_results),
-        })
-        print(f"mAP50: {val_results.box.map50:.4f}  mAP50-95: {val_results.box.map:.4f}")
-    except Exception as exc:
-        print(f"validation failed: {exc}")
+    if skip_final_val:
+        print("final validation skipped by --extra skip_final_val=True")
+    else:
+        try:
+            val_results = model.val(
+                data=str(data_yaml),
+                imgsz=args.imgsz,
+                batch=16,
+                device=args.device,
+                project=str(resolve_project_path("runs/val")),
+                name=args.task_name,
+            )
+            metrics.update({
+                "mAP50": round(float(val_results.box.map50), 4),
+                "mAP50-95": round(float(val_results.box.map), 4),
+                "precision": round(float(val_results.box.mp), 4),
+                "recall": round(float(val_results.box.mr), 4),
+                "per_class": collect_per_class_metrics(val_results),
+            })
+            print(f"mAP50: {val_results.box.map50:.4f}  mAP50-95: {val_results.box.map:.4f}")
+        except Exception as exc:
+            print(f"validation failed: {exc}")
 
     save_metrics(save_dir, args.task_name, metrics)
 
@@ -293,12 +366,10 @@ def cmd_train(args: argparse.Namespace) -> None:
     print(message)
     notify("training complete", message)
 
-    if args.shutdown:
-        do_shutdown()
-
 
 def cmd_val(args: argparse.Namespace) -> None:
-    data_yaml = resolve_project_path(args.data_yaml)
+    YOLO = load_yolo()
+    data_yaml = resolve_data_yaml(args)
     output_dir = resolve_project_path(args.output_dir)
     model = YOLO(str(resolve_project_path(args.weights)))
     results = model.val(
@@ -316,12 +387,14 @@ def cmd_val(args: argparse.Namespace) -> None:
 
 
 def cmd_export(args: argparse.Namespace) -> None:
+    YOLO = load_yolo()
     model = YOLO(str(resolve_project_path(args.weights)))
     model.export(format=args.format, imgsz=args.imgsz, half=args.half, dynamic=args.dynamic)
     print(f"export complete: {args.weights}")
 
 
 def cmd_predict(args: argparse.Namespace) -> None:
+    YOLO = load_yolo()
     model = YOLO(str(resolve_project_path(args.weights)))
     results = model.predict(
         source=str(resolve_project_path(args.source)),
