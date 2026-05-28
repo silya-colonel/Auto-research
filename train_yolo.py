@@ -271,6 +271,10 @@ def cmd_train(args: argparse.Namespace) -> None:
     focal_alpha = float(extra.pop("focal_alpha", 0.25))
     sahb_scale_weight = float(extra.pop("sahb_scale_weight", 1.0))
     sahb_hard_bg_weight = float(extra.pop("sahb_hard_bg_weight", 0.0))
+    dsa_shape_weight = float(extra.pop("dsa_shape_weight", 1.0))
+    dsa_tiny_area = float(extra.pop("dsa_tiny_area", 0.0005))
+    dsa_elongated_ratio = float(extra.pop("dsa_elongated_ratio", 6.0))
+    dsa_max_boost = float(extra.pop("dsa_max_boost", 3.0))
     skip_final_val = bool(extra.pop("skip_final_val", False))
     if (
         custom_iou_loss
@@ -280,11 +284,22 @@ def cmd_train(args: argparse.Namespace) -> None:
     ):
         custom_cls_loss = "focal"
         focal_gamma = max(focal_gamma, 1.5 + sahb_hard_bg_weight)
-    patch_detection_iou_loss(
-        str(custom_iou_loss) if custom_iou_loss else None,
-        scale_weight=sahb_scale_weight,
-        hard_bg_weight=sahb_hard_bg_weight,
-    )
+    if custom_iou_loss and str(custom_iou_loss).lower() == "dsa":
+        patch_detection_iou_loss(
+            "dsa",
+            scale_weight=sahb_scale_weight,
+            hard_bg_weight=sahb_hard_bg_weight,
+            dsa_shape_weight=dsa_shape_weight,
+            dsa_tiny_area=dsa_tiny_area,
+            dsa_elongated_ratio=dsa_elongated_ratio,
+            dsa_max_boost=dsa_max_boost,
+        )
+    else:
+        patch_detection_iou_loss(
+            str(custom_iou_loss) if custom_iou_loss else None,
+            scale_weight=sahb_scale_weight,
+            hard_bg_weight=sahb_hard_bg_weight,
+        )
     patch_detection_cls_loss(str(custom_cls_loss) if custom_cls_loss else None, gamma=focal_gamma, alpha=focal_alpha)
 
     model = YOLO(args.model)

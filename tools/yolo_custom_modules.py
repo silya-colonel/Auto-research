@@ -116,6 +116,35 @@ def scale_aware_box_weight(
     return base_weight * (1.0 + scale_weight * tiny_factor)
 
 
+def defect_shape_aware_box_weight(
+    target_bboxes: torch.Tensor,
+    fg_mask: torch.Tensor,
+    base_weight: torch.Tensor,
+    imgsz: torch.Tensor,
+    shape_weight: float = 1.0,
+    tiny_area: float = 0.0005,
+    elongated_ratio: float = 6.0,
+    max_boost: float = 3.0,
+) -> torch.Tensor:
+    """Boost localization weight for tiny and elongated weld-defect boxes."""
+    if shape_weight <= 0:
+        return base_weight
+
+    selected = target_bboxes[fg_mask]
+    widths = (selected[..., 2] - selected[..., 0]).clamp(min=0) / imgsz[1].clamp(min=1)
+    heights = (selected[..., 3] - selected[..., 1]).clamp(min=0) / imgsz[0].clamp(min=1)
+    areas = widths * heights
+    tiny_factor = ((tiny_area - areas) / tiny_area).clamp(min=0.0, max=1.0)
+
+    short_side = torch.minimum(widths, heights).clamp(min=1e-6)
+    long_side = torch.maximum(widths, heights)
+    aspect = long_side / short_side
+    elongated_factor = ((aspect - 1.0) / max(elongated_ratio - 1.0, 1e-6)).clamp(min=0.0, max=1.0)
+
+    shape_factor = (tiny_factor + elongated_factor).clamp(min=0.0, max=float(max_boost))
+    return base_weight * (1.0 + shape_weight * shape_factor.unsqueeze(-1))
+
+
 def register_yolo_modules() -> None:
     """Register local YAML modules into Ultralytics' parse_model globals."""
     import ultralytics.nn.tasks as tasks
@@ -129,6 +158,10 @@ def patch_detection_iou_loss(
     iou_type: str | None,
     scale_weight: float = 1.0,
     hard_bg_weight: float = 0.0,
+    dsa_shape_weight: float = 1.0,
+    dsa_tiny_area: float = 0.0005,
+    dsa_elongated_ratio: float = 6.0,
+    dsa_max_boost: float = 3.0,
 ) -> None:
     """Patch BboxLoss to use a selectable IoU variant for box regression."""
     if not iou_type or iou_type.lower() in {"ciou", "default"}:
@@ -139,8 +172,8 @@ def patch_detection_iou_loss(
     from ultralytics.utils.tal import bbox2dist
 
     selected = iou_type.lower()
-    if selected not in {"diou", "giou", "iou", "sahb"}:
-        raise ValueError(f"Unsupported custom_iou_loss={iou_type}. Use ciou/default, diou, giou, iou, or sahb.")
+    if selected not in {"diou", "giou", "iou", "sahb", "dsa"}:
+        raise ValueError(f"Unsupported custom_iou_loss={iou_type}. Use ciou/default, diou, giou, iou, sahb, or dsa.")
 
     def forward(
         self,
@@ -163,9 +196,20 @@ def patch_detection_iou_loss(
                 imgsz=imgsz,
                 scale_weight=scale_weight,
             )
+        elif selected == "dsa":
+            weight = defect_shape_aware_box_weight(
+                target_bboxes=target_bboxes,
+                fg_mask=fg_mask,
+                base_weight=weight,
+                imgsz=imgsz,
+                shape_weight=dsa_shape_weight,
+                tiny_area=dsa_tiny_area,
+                elongated_ratio=dsa_elongated_ratio,
+                max_boost=dsa_max_boost,
+            )
         kwargs = {
             "xywh": False,
-            "CIoU": selected in {"ciou", "sahb"},
+            "CIoU": selected in {"ciou", "sahb", "dsa"},
             "DIoU": selected == "diou",
             "GIoU": selected == "giou",
         }
