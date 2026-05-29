@@ -158,7 +158,8 @@ def resolve_data_yaml(args: argparse.Namespace) -> Path:
 
     data_yaml = resolve_project_path(requested)
     if not data_yaml.exists():
-        sys.exit(f"data.yaml not found: {data_yaml}")
+        print(f"data.yaml not found: {data_yaml}", file=sys.stderr)
+        sys.exit(1)
     return prepare_data_yaml_for_ultralytics(data_yaml)
 
 
@@ -265,12 +266,30 @@ def cmd_train(args: argparse.Namespace) -> None:
 
     runs_dir = resolve_project_path(args.runs_dir)
     extra = parse_extra(args.extra)
+    def _safe_float(key: str, default: float) -> float:
+        value = extra.pop(key, default)
+        try:
+            return float(value)
+        except (TypeError, ValueError) as exc:
+            print(f"Invalid value for {key}: {value!r} ({exc})", file=sys.stderr)
+            sys.exit(1)
+
     custom_iou_loss = extra.pop("custom_iou_loss", None)
     custom_cls_loss = extra.pop("custom_cls_loss", None)
-    focal_gamma = float(extra.pop("focal_gamma", 1.5))
-    focal_alpha = float(extra.pop("focal_alpha", 0.25))
-    sahb_scale_weight = float(extra.pop("sahb_scale_weight", 1.0))
-    sahb_hard_bg_weight = float(extra.pop("sahb_hard_bg_weight", 0.0))
+    focal_gamma = _safe_float("focal_gamma", 1.5)
+    focal_alpha = _safe_float("focal_alpha", 0.25)
+    hnc_lambda = _safe_float("hnc_lambda", 0.5)
+    hnc_tau = _safe_float("hnc_tau", 0.25)
+    hnc_high_conf = _safe_float("hnc_high_conf", 0.75)
+    hnc_mid_weight = _safe_float("hnc_mid_weight", 0.3)
+    hnc_iou_ref = _safe_float("hnc_iou_ref", 0.1)
+    hnc_sidecar = extra.pop("hnc_sidecar", None)
+    sahb_scale_weight = _safe_float("sahb_scale_weight", 1.0)
+    sahb_hard_bg_weight = _safe_float("sahb_hard_bg_weight", 0.0)
+    dsa_shape_weight = _safe_float("dsa_shape_weight", 1.0)
+    dsa_tiny_area = _safe_float("dsa_tiny_area", 0.0005)
+    dsa_elongated_ratio = _safe_float("dsa_elongated_ratio", 6.0)
+    dsa_max_boost = _safe_float("dsa_max_boost", 3.0)
     skip_final_val = bool(extra.pop("skip_final_val", False))
     if (
         custom_iou_loss
@@ -278,14 +297,51 @@ def cmd_train(args: argparse.Namespace) -> None:
         and sahb_hard_bg_weight > 0
         and custom_cls_loss is None
     ):
+        # SAHB hard-bg weighting shifts positive-sample definition; standard BCE
+        # can be overwhelmed by the reweighted anchors. Auto-enable focal loss to
+        # keep the cls head stable without requiring matrix-level coordination.
+        #
+        # When custom_cls_loss=hnc is already set, this auto-focal block is
+        # intentionally skipped — HNC provides its own per-region classification
+        # penalty and does not need focal substitution. SAHB (box regression) and
+        # HNC (classification) can coexist without conflict, but the user must
+        # explicitly pass custom_cls_loss=hnc (focal won't be auto-enabled).
         custom_cls_loss = "focal"
         focal_gamma = max(focal_gamma, 1.5 + sahb_hard_bg_weight)
-    patch_detection_iou_loss(
-        str(custom_iou_loss) if custom_iou_loss else None,
-        scale_weight=sahb_scale_weight,
-        hard_bg_weight=sahb_hard_bg_weight,
+    if custom_iou_loss and str(custom_iou_loss).lower() == "dsa":
+        patch_detection_iou_loss(
+            "dsa",
+            scale_weight=sahb_scale_weight,
+            hard_bg_weight=sahb_hard_bg_weight,
+            dsa_shape_weight=dsa_shape_weight,
+            dsa_tiny_area=dsa_tiny_area,
+            dsa_elongated_ratio=dsa_elongated_ratio,
+            dsa_max_boost=dsa_max_boost,
+        )
+    else:
+        patch_detection_iou_loss(
+            str(custom_iou_loss) if custom_iou_loss else None,
+            scale_weight=sahb_scale_weight,
+            hard_bg_weight=sahb_hard_bg_weight,
+        )
+    if hnc_sidecar:
+        hnc_sidecar_path = Path(str(hnc_sidecar))
+        if not hnc_sidecar_path.is_absolute():
+            candidate = data_yaml.parent / hnc_sidecar_path
+            hnc_sidecar = str(candidate if candidate.exists() else resolve_project_path(hnc_sidecar_path))
+    elif custom_cls_loss and str(custom_cls_loss).lower() in {"hnc", "hnc_v2"}:
+        hnc_sidecar = str(data_yaml.parent / "hnc_fp_sidecar.json")
+    patch_detection_cls_loss(
+        str(custom_cls_loss) if custom_cls_loss else None,
+        gamma=focal_gamma,
+        alpha=focal_alpha,
+        hnc_sidecar=hnc_sidecar,
+        hnc_lambda=hnc_lambda,
+        hnc_tau=hnc_tau,
+        hnc_high_conf=hnc_high_conf,
+        hnc_mid_weight=hnc_mid_weight,
+        hnc_iou_ref=hnc_iou_ref,
     )
-    patch_detection_cls_loss(str(custom_cls_loss) if custom_cls_loss else None, gamma=focal_gamma, alpha=focal_alpha)
 
     model = YOLO(args.model)
 
@@ -299,7 +355,8 @@ def cmd_train(args: argparse.Namespace) -> None:
     elif args.pretrained_weights:
         pretrained_weights = resolve_project_path(args.pretrained_weights)
         if not pretrained_weights.exists():
-            sys.exit(f"pretrained weights not found: {pretrained_weights}")
+            print(f"pretrained weights not found: {pretrained_weights}", file=sys.stderr)
+            sys.exit(1)
         print(f"loading pretrained weights: {pretrained_weights}")
         model.load(str(pretrained_weights))
 
@@ -358,7 +415,11 @@ def cmd_train(args: argparse.Namespace) -> None:
             })
             print(f"mAP50: {val_results.box.map50:.4f}  mAP50-95: {val_results.box.map:.4f}")
         except Exception as exc:
-            print(f"validation failed: {exc}")
+            import traceback
+
+            print(f"validation failed: {exc}", file=sys.stderr)
+            traceback.print_exc(file=sys.stderr)
+            metrics["validation_error"] = str(exc)
 
     save_metrics(save_dir, args.task_name, metrics)
 
@@ -417,5 +478,12 @@ COMMANDS = {
 
 
 if __name__ == "__main__":
+    # On a ClearML worker, sys.argv is lost — recover it from stored task params.
+    from tools.clearml_remote import get_remote_script_args
+
+    remote_args = get_remote_script_args()
+    if remote_args:
+        sys.argv = [sys.argv[0]] + remote_args
+
     parsed_args = build_parser().parse_args()
     COMMANDS[parsed_args.command](parsed_args)

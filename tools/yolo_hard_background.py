@@ -9,7 +9,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from yolo_area_metrics import Detection, bbox_iou, load_labels, load_predictions
+from tools.yolo_area_metrics import Detection, bbox_iou, load_labels, load_predictions
 
 
 @dataclass(frozen=True)
