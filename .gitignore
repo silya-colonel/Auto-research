@@ -67,3 +67,4 @@ patent/
 !templates/INVENTION_BRIEF_TEMPLATE.md
 !templates/PATENT_CLAIMS_TEMPLATE.md
 !templates/PATENT_SPECIFICATION_TEMPLATE.md
+.cache/
