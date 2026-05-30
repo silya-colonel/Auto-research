@@ -433,9 +433,40 @@ def cmd_train(args: argparse.Namespace) -> None:
 
     save_metrics(save_dir, args.task_name, metrics)
 
+    # Upload artifacts to ClearML (best model, metrics)
+    _upload_clearml_artifacts(save_dir)
+
     message = f"{args.task_name}: done (mAP50={metrics.get('mAP50', 'N/A')})"
     print(message)
     notify("training complete", message)
+
+
+def _upload_clearml_artifacts(save_dir: Path) -> None:
+    """Upload best.pt and metrics.json to the current ClearML task, if one exists."""
+    try:
+        from clearml import Task
+        task = Task.current_task()
+        if task is None:
+            return
+
+        # Upload best model weights
+        best_pt = save_dir / "weights" / "best.pt"
+        if best_pt.exists():
+            task.upload_artifact("best.pt", str(best_pt))
+
+        # Upload last checkpoint
+        last_pt = save_dir / "weights" / "last.pt"
+        if last_pt.exists() and last_pt != best_pt:
+            task.upload_artifact("last.pt", str(last_pt))
+
+        # Upload metrics
+        metrics_file = save_dir / "metrics.json"
+        if metrics_file.exists():
+            task.upload_artifact("metrics.json", str(metrics_file))
+
+        print("ClearML artifacts uploaded.")
+    except Exception:
+        pass  # Non-critical — training is already complete
 
 
 def cmd_val(args: argparse.Namespace) -> None:

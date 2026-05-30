@@ -1,3 +1,17 @@
+"""DEPRECATED — replaced by the direct SSH pipeline.
+
+This module was used by the old ClearML-agent bundle flow:
+  Mac -> clearml_submit_runs.py -> ClearML queue -> clearml_agent daemon -> this script
+
+The new flow bypasses agent queuing entirely:
+  Mac -> ssh_submit.py -> SSH -> run_experiments.sh -> train_yolo.py (direct execution)
+
+ClearML is still used for logging/artifacts via --enable-clearml in train_yolo.py,
+but clearml_launcher.py is no longer called as the remote entrypoint.
+
+Keep this file for reference until the new pipeline is fully validated.
+"""
+
 from __future__ import annotations
 
 import argparse

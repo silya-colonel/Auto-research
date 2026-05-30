@@ -7,7 +7,8 @@
 #   --model NAME       (default: yolo11n.pt)
 #   --clearml-project NAME  (default: yolo-steel-defect)
 #
-# All other arguments are forwarded to train_yolo.py.
+# All other arguments (--imgsz, --epochs, --batch, --device, --workers,
+#   --seed, --runs-dir, --extra ...) are forwarded to train_yolo.py.
 #
 # Example:
 #   ssh server03 "~/ar/run_experiments.sh baseline_... --data-yaml data/steel-defect-mixed/data.yaml --model yolo11n.pt --imgsz 640 --epochs 100 --device 0 --seed 42"
@@ -35,17 +36,38 @@ while [ $# -gt 0 ]; do
         --data-yaml)
             DATA_YAML="$2"; shift 2 ;;
         --data-yaml=*)
-            DATA_YAML="${1#*=}"; shift ;;
+            DATA_YAML="${1#*=}"; shift
+            if [ -z "${DATA_YAML}" ]; then
+                echo "ERROR: --data-yaml= requires a non-empty value" >&2
+                exit 1
+            fi
+            ;;
         --model)
             MODEL="$2"; shift 2 ;;
         --model=*)
-            MODEL="${1#*=}"; shift ;;
+            MODEL="${1#*=}"; shift
+            if [ -z "${MODEL}" ]; then
+                echo "ERROR: --model= requires a non-empty value" >&2
+                exit 1
+            fi
+            ;;
         --clearml-project)
             CLEARML_PROJECT="$2"; shift 2 ;;
         --clearml-project=*)
-            CLEARML_PROJECT="${1#*=}"; shift ;;
+            CLEARML_PROJECT="${1#*=}"; shift
+            if [ -z "${CLEARML_PROJECT}" ]; then
+                echo "ERROR: --clearml-project= requires a non-empty value" >&2
+                exit 1
+            fi
+            ;;
         --extra)
-            shift; EXTRA_ARGS+=("--extra" "$@"); break ;;
+            shift
+            EXTRA_ARGS+=("--extra")
+            for extra_arg in "$@"; do
+                EXTRA_ARGS+=("${extra_arg}")
+                shift
+            done
+            break ;;
         *)
             EXTRA_ARGS+=("$1"); shift ;;
     esac
@@ -75,7 +97,6 @@ exec "${VENV}" train_yolo.py train \
     --task-name "${TASK_NAME}" \
     --data-yaml "${DATA_YAML}" \
     --model "${MODEL}" \
-    --runs-dir runs/yolo \
     --enable-clearml \
     --clearml-project "${CLEARML_PROJECT}" \
     "${EXTRA_ARGS[@]}"
