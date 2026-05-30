@@ -63,17 +63,26 @@ def build_remote_command(run: object, args: argparse.Namespace, device: int) -> 
     return " ".join(shlex.quote(p) for p in parts)
 
 
-def ssh_run(host: str, remote_cmd: str, dry_run: bool = False) -> int:
-    """Execute a command on the remote host via SSH."""
-    ssh_cmd = ["ssh", host, remote_cmd]
+def ssh_run(host: str, remote_cmd: str, run: object, dry_run: bool = False) -> int:
+    """Execute a command on the remote host via SSH, return immediately."""
+    # Wrap with nohup so training runs in background and SSH exits immediately
+    log_file = f"/tmp/{run.id}_ssh.log"
+    background_cmd = f"nohup {remote_cmd} > {log_file} 2>&1 & echo PID=$!"
+    ssh_cmd = ["ssh", host, background_cmd]
 
     if dry_run:
-        print(f"[DRY-RUN] {' '.join(ssh_cmd)}")
+        print(f"[DRY-RUN] {remote_cmd[:150]}...")
         return 0
 
-    print(f"[{host}] {remote_cmd[:200]}{'...' if len(remote_cmd) > 200 else ''}")
-    result = subprocess.run(ssh_cmd)
-    return result.returncode
+    print(f"[{host}] {run.id}: {remote_cmd[:180]}...")
+    result = subprocess.run(ssh_cmd, capture_output=True, text=True, timeout=30)
+    if result.returncode != 0:
+        print(f"[FAILED] {result.stderr.strip()}")
+        return result.returncode
+    print(f"  -> submitted, log: {log_file}")
+    if result.stdout.strip():
+        print(f"  -> {result.stdout.strip()}")
+    return 0
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -123,7 +132,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     for i, r in enumerate(train_runs):
         device = i % args.gpus
         cmd = build_remote_command(r, args, device)
-        rc = ssh_run(args.host, cmd, dry_run=args.dry_run)
+        rc = ssh_run(args.host, cmd, r, dry_run=args.dry_run)
         if rc != 0:
             print(f"[FAILED] {r.id} returned {rc}")
             return rc
