@@ -1,0 +1,21 @@
+{
+  "settings_version": "0.0.6",
+  "datasets_dir": "/home/useryan/ar/datasets",
+  "weights_dir": "weights",
+  "runs_dir": "runs",
+  "uuid": "b48eddb212c3365ca8b8aa7599efd2a0ac6eea87f896cb6a654b4a600e17b774",
+  "sync": true,
+  "api_key": "",
+  "openai_api_key": "",
+  "clearml": true,
+  "comet": true,
+  "dvc": true,
+  "hub": true,
+  "mlflow": false,
+  "neptune": true,
+  "raytune": true,
+  "tensorboard": false,
+  "wandb": false,
+  "vscode_msg": true,
+  "openvino_msg": true
+}

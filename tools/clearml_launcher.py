@@ -26,7 +26,11 @@ def find_file(root: Path, name: str) -> Path:
 
 
 def prepare_remote_data_yaml(data_root: Path) -> Path:
-    data_yaml = find_file(data_root, "data.yaml")
+    try:
+        data_yaml = find_file(data_root, "data.yaml")
+    except SystemExit:
+        # data.yaml not in dataset — generate one from known templates
+        data_yaml = _generate_data_yaml(data_root)
     lines = data_yaml.read_text(encoding="utf-8").splitlines()
     rewritten: list[str] = []
     has_path = False
@@ -41,6 +45,73 @@ def prepare_remote_data_yaml(data_root: Path) -> Path:
     out = data_root / "data.remote.yaml"
     out.write_text("\n".join(rewritten) + "\n", encoding="utf-8")
     return out
+
+
+_STEEL_DEFECT_MIXED_YAML = """\
+path: .
+train: images/train
+val: images/val
+nc: 10
+names:
+  - inclusions
+  - dents
+  - oil_spots
+  - pits
+  - punching
+  - linear
+  - macular
+  - welding_seams
+  - water_spots
+  - scratches
+"""
+
+
+def _generate_data_yaml(data_root: Path) -> Path:
+    """Generate a data.yaml when the dataset doesn't include one."""
+    out = data_root / "data.yaml"
+
+    # Check for Steel-Defect-Mixed dataset by looking for characteristic content
+    steel_mixed_marker = data_root / "steel-defect-mixed" / "README.md"
+    if (data_root / "steel-defect-mixed").is_dir() or steel_mixed_marker.exists():
+        out.write_text(_STEEL_DEFECT_MIXED_YAML, encoding="utf-8")
+        return out
+
+    # Generic fallback: try to infer from directory structure
+    train_dir = None
+    val_dir = None
+    for candidate in ["images/train", "train/images", "train"]:
+        if (data_root / candidate).is_dir():
+            train_dir = candidate
+            break
+    for candidate in ["images/val", "valid/images", "val", "valid"]:
+        if (data_root / candidate).is_dir():
+            val_dir = candidate
+            break
+
+    if train_dir and val_dir:
+        # Count classes from label files (max class index in any label file)
+        label_dir = data_root / "labels" / "train"
+        if not label_dir.is_dir():
+            label_dirs = sorted(data_root.glob("**/labels/train"))
+            label_dir = label_dirs[0] if label_dirs else None
+        nc = 1
+        if label_dir and label_dir.is_dir():
+            max_cls = 0
+            for lbl in label_dir.glob("*.txt"):
+                try:
+                    for line in lbl.read_text().strip().splitlines():
+                        cls_id = int(line.split()[0])
+                        max_cls = max(max_cls, cls_id)
+                except (ValueError, IndexError):
+                    pass
+            nc = max_cls + 1
+        yaml_content = f"path: .\ntrain: {train_dir}\nval: {val_dir}\nnc: {nc}\nnames:\n"
+        for i in range(nc):
+            yaml_content += f"  - class_{i}\n"
+        out.write_text(yaml_content, encoding="utf-8")
+        return out
+
+    raise SystemExit(f"Cannot generate data.yaml: no recognizable dataset structure under {data_root}")
 
 
 def resolve_packaged_path(code_root: Path, value: str | None) -> str | None:
