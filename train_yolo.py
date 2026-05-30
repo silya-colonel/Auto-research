@@ -262,6 +262,16 @@ def cmd_train(args: argparse.Namespace) -> None:
         exit_process=True,
     )
 
+    # When --enable-clearml (logging only, no queue), create a Task so
+    # ultralytics' ClearML callback attaches to it instead of auto-creating
+    # one with a broken project name.
+    if clearml_enabled and not args.clearml_remote:
+        from clearml import Task
+        Task.init(
+            project_name=args.clearml_project,
+            task_name=args.task_name,
+        )
+
     data_yaml = resolve_data_yaml(args)
 
     runs_dir = resolve_project_path(args.runs_dir)
