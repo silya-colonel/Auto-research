@@ -16,7 +16,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from tools.idea_diag_common import Box, gate_passes, load_yolo_labels, write_json
+from tools.idea_diag_common import Box, finish_clearml_task, gate_passes, load_yolo_labels, write_json
 
 
 @dataclass(frozen=True)
@@ -208,9 +208,23 @@ def main() -> None:
         min_records=args.min_records,
         min_usable_rate=args.min_usable_rate,
     )
-    write_json(args.out_dir / "summary.json", summary)
-    write_json(args.out_dir / "teacher_quality_records.json", records)
-    write_report(summary, args.out_dir / "report.md")
+    summary_path = args.out_dir / "summary.json"
+    records_path = args.out_dir / "teacher_quality_records.json"
+    report_path = args.out_dir / "report.md"
+    write_json(summary_path, summary)
+    write_json(records_path, records)
+    write_report(summary, report_path)
+    finish_clearml_task(
+        enabled=args.enable_clearml,
+        project_name=args.clearml_project,
+        task_name=args.clearml_task_name,
+        summary=summary,
+        artifacts={
+            "summary": summary_path,
+            "teacher_quality_records": records_path,
+            "report": report_path,
+        },
+    )
 
 
 if __name__ == "__main__":

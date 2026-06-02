@@ -17,6 +17,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from tools.idea_diag_common import (
     class_agnostic_best_iou,
+    finish_clearml_task,
     gate_passes,
     label_key,
     load_yolo_labels,
@@ -232,9 +233,23 @@ def main() -> None:
     )
     if blocked_reason:
         summary["blocked_reason"] = blocked_reason
-    write_json(args.out_dir / "summary.json", summary)
-    write_json(args.out_dir / "reliability_records.json", records)
-    write_report(summary, args.out_dir / "report.md")
+    summary_path = args.out_dir / "summary.json"
+    records_path = args.out_dir / "reliability_records.json"
+    report_path = args.out_dir / "report.md"
+    write_json(summary_path, summary)
+    write_json(records_path, records)
+    write_report(summary, report_path)
+    finish_clearml_task(
+        enabled=args.enable_clearml,
+        project_name=args.clearml_project,
+        task_name=args.clearml_task_name,
+        summary=summary,
+        artifacts={
+            "summary": summary_path,
+            "reliability_records": records_path,
+            "report": report_path,
+        },
+    )
 
 
 if __name__ == "__main__":
