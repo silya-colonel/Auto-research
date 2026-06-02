@@ -17,6 +17,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from tools.idea_diag_common import (
     dataset_root,
     class_agnostic_best_iou,
+    finish_clearml_task,
     iter_image_paths,
     label_path_for_image,
     load_data_yaml,
@@ -262,9 +263,23 @@ def main() -> None:
             iou_threshold=args.iou_threshold,
         )
         proposals = predictions
-    write_json(output / "summary.json", summary)
-    write_json(output / "unknown_proposals.json", proposals)
-    write_report(summary, output / "report.md")
+    summary_path = output / "summary.json"
+    proposals_path = output / "unknown_proposals.json"
+    report_path = output / "report.md"
+    write_json(summary_path, summary)
+    write_json(proposals_path, proposals)
+    write_report(summary, report_path)
+    finish_clearml_task(
+        enabled=args.enable_clearml,
+        project_name=args.clearml_project,
+        task_name=args.clearml_task_name,
+        summary=summary,
+        artifacts={
+            "summary": summary_path,
+            "unknown_proposals": proposals_path,
+            "report": report_path,
+        },
+    )
 
 
 if __name__ == "__main__":

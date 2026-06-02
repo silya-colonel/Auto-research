@@ -8,6 +8,8 @@ from tools.idea_diag_common import (
     Box,
     LabelKey,
     class_agnostic_best_iou,
+    finish_clearml_task,
+    flatten_numeric_metrics,
     gate_passes,
     label_key,
     label_path_for_image,
@@ -78,6 +80,80 @@ class IdeaDiagCommonTests(unittest.TestCase):
             self.assertEqual(labels[0]["cls"], 1)
             self.assertEqual(labels[0]["box"], Box(0.4, 0.4, 0.6, 0.6))
             self.assertEqual(label_path_for_image(image_path, data_yaml).resolve(), (label_dir / "sample.txt").resolve())
+
+    def test_flatten_numeric_metrics_recurses_and_converts_bools(self) -> None:
+        metrics = flatten_numeric_metrics({"records": 3, "gate": {"passes_gate": True}, "text": "x"})
+
+        self.assertEqual(metrics["records"], 3.0)
+        self.assertEqual(metrics["gate.passes_gate"], 1.0)
+        self.assertNotIn("text", metrics)
+
+    def test_finish_clearml_task_reports_scalars_and_uploads_artifacts(self) -> None:
+        class FakeLogger:
+            def __init__(self) -> None:
+                self.scalars: list[tuple[str, str, float, int]] = []
+
+            def report_scalar(self, title: str, series: str, value: float, iteration: int) -> None:
+                self.scalars.append((title, series, value, iteration))
+
+        class FakeTask:
+            def __init__(self) -> None:
+                self.logger = FakeLogger()
+                self.artifacts: dict[str, str] = {}
+                self.closed = False
+
+            def get_logger(self) -> FakeLogger:
+                return self.logger
+
+            def upload_artifact(self, name: str, artifact_object: str) -> None:
+                self.artifacts[name] = artifact_object
+
+            def close(self) -> None:
+                self.closed = True
+
+        with tempfile.TemporaryDirectory() as tmp:
+            artifact = Path(tmp) / "summary.json"
+            artifact.write_text("{}", encoding="utf-8")
+            created: list[FakeTask] = []
+
+            def factory(**_kwargs: object) -> FakeTask:
+                task = FakeTask()
+                created.append(task)
+                return task
+
+            finish_clearml_task(
+                enabled=True,
+                project_name="project",
+                task_name="task",
+                summary={"records": 1, "gate": {"passes_gate": True}},
+                artifacts={"summary": artifact, "missing": Path(tmp) / "missing.json"},
+                task_factory=factory,
+            )
+
+            self.assertEqual(len(created), 1)
+            self.assertIn(("summary", "records", 1.0, 0), created[0].logger.scalars)
+            self.assertIn(("summary", "gate.passes_gate", 1.0, 0), created[0].logger.scalars)
+            self.assertEqual(created[0].artifacts["summary"], str(artifact))
+            self.assertTrue(created[0].closed)
+
+    def test_finish_clearml_task_disabled_does_not_create_task(self) -> None:
+        called = False
+
+        def factory(**_kwargs: object) -> object:
+            nonlocal called
+            called = True
+            return object()
+
+        finish_clearml_task(
+            enabled=False,
+            project_name="project",
+            task_name="task",
+            summary={},
+            artifacts={},
+            task_factory=factory,
+        )
+
+        self.assertFalse(called)
 
 
 if __name__ == "__main__":

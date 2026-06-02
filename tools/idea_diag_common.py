@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 IMAGE_SUFFIXES = {".bmp", ".jpg", ".jpeg", ".png", ".tif", ".tiff", ".webp"}
 
@@ -252,3 +252,46 @@ def yolo_result_to_predictions(results: Any) -> list[dict[str, Any]]:
                 }
             )
     return predictions
+
+
+def flatten_numeric_metrics(payload: dict[str, Any], prefix: str = "") -> dict[str, float]:
+    metrics: dict[str, float] = {}
+    for key, value in payload.items():
+        name = f"{prefix}.{key}" if prefix else str(key)
+        if isinstance(value, bool):
+            metrics[name] = 1.0 if value else 0.0
+        elif isinstance(value, (int, float)) and not isinstance(value, bool):
+            metrics[name] = float(value)
+        elif isinstance(value, dict):
+            metrics.update(flatten_numeric_metrics(value, prefix=name))
+    return metrics
+
+
+def finish_clearml_task(
+    *,
+    enabled: bool,
+    project_name: str,
+    task_name: str | None,
+    summary: dict[str, Any],
+    artifacts: dict[str, Path],
+    task_factory: Callable[..., Any] | None = None,
+) -> None:
+    if not enabled:
+        return
+    if task_factory is None:
+        from clearml import Task  # type: ignore
+
+        task_factory = Task.init
+
+    task = task_factory(
+        project_name=project_name,
+        task_name=task_name or "parallel_s_idea_diagnostic",
+        auto_connect_frameworks=False,
+    )
+    logger = task.get_logger()
+    for metric_name, value in flatten_numeric_metrics(summary).items():
+        logger.report_scalar(title="summary", series=metric_name, value=value, iteration=0)
+    for name, path in artifacts.items():
+        if path.exists():
+            task.upload_artifact(name=name, artifact_object=str(path))
+    task.close()
