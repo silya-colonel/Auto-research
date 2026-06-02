@@ -1,0 +1,51 @@
+project: yolo11_welding_defect
+updated: "2026-06-02"
+purpose: "Diagnostic harness for CLR-YOLO, OSD-YOLO, and FASD-YOLO before GPU training."
+
+runs:
+  - id: clr_label_reliability
+    phase: parallel_s_idea_diagnostics
+    kind: clr_diag
+    data_yaml: data/steel-defect-mixed/data.yaml
+    weights: runs/yolo/baseline/weights/best.pt
+    out_dir: idea-stage/artifacts/parallel_s/clr_label_reliability
+    split: val
+    imgsz: 640
+    conf: 0.05
+    max_det: 300
+    max_images: 0
+    views: 3
+    min_records: 100
+    min_error_explained: 0.2
+
+  - id: osd_holdout_surface_classes
+    phase: parallel_s_idea_diagnostics
+    kind: osd_diag
+    mode: evaluate
+    data_yaml: data/steel-defect-mixed/data.yaml
+    weights: runs/yolo/baseline/weights/best.pt
+    out_dir: idea-stage/artifacts/parallel_s/osd_holdout_surface_classes
+    unknown_class: [2]
+    split: val
+    imgsz: 640
+    conf: 0.05
+    max_det: 300
+
+  - id: fasd_edge_proxy_teacher_audit
+    phase: parallel_s_idea_diagnostics
+    kind: fasd_audit
+    data_yaml: data/steel-defect-mixed/data.yaml
+    out_dir: idea-stage/artifacts/parallel_s/fasd_edge_proxy_teacher_audit
+    split: val
+    provider: edge_proxy
+    max_samples: 100
+    min_records: 100
+    min_usable_rate: 0.3
+
+  - id: rank_parallel_s_ideas
+    phase: parallel_s_idea_diagnostics
+    kind: idea_rank
+    clr_summary: idea-stage/artifacts/parallel_s/clr_label_reliability/summary.json
+    osd_summary: idea-stage/artifacts/parallel_s/osd_holdout_surface_classes/summary.json
+    fasd_summary: idea-stage/artifacts/parallel_s/fasd_edge_proxy_teacher_audit/summary.json
+    out: idea-stage/artifacts/parallel_s/ranking.md
