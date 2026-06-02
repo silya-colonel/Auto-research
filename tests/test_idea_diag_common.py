@@ -10,7 +10,10 @@ from tools.idea_diag_common import (
     class_agnostic_best_iou,
     gate_passes,
     label_key,
+    label_path_for_image,
+    load_yolo_labels,
     write_json,
+    yolo_line_to_box,
 )
 
 
@@ -46,6 +49,35 @@ class IdeaDiagCommonTests(unittest.TestCase):
             write_json(path, {"ok": True})
 
             self.assertEqual(path.read_text(encoding="utf-8").strip(), '{\n  "ok": true\n}')
+
+    def test_yolo_line_to_box_converts_center_width_height_to_xyxy(self) -> None:
+        parsed = yolo_line_to_box("2 0.50 0.50 0.20 0.40")
+
+        self.assertIsNotNone(parsed)
+        cls, box = parsed
+        self.assertEqual(cls, 2)
+        self.assertEqual(box, Box(0.4, 0.3, 0.6, 0.7))
+
+    def test_load_yolo_labels_resolves_standard_images_labels_layout(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            image_dir = root / "images" / "val"
+            label_dir = root / "labels" / "val"
+            image_dir.mkdir(parents=True)
+            label_dir.mkdir(parents=True)
+            image_path = image_dir / "sample.jpg"
+            image_path.write_bytes(b"not-a-real-image")
+            (label_dir / "sample.txt").write_text("1 0.5 0.5 0.2 0.2\n", encoding="utf-8")
+            data_yaml = root / "data.yaml"
+            data_yaml.write_text("path: .\nval: images/val\nnames: ['a', 'b']\n", encoding="utf-8")
+
+            labels = load_yolo_labels(data_yaml, "val")
+
+            self.assertEqual(len(labels), 1)
+            self.assertEqual(labels[0]["image_id"], "sample")
+            self.assertEqual(labels[0]["cls"], 1)
+            self.assertEqual(labels[0]["box"], Box(0.4, 0.4, 0.6, 0.6))
+            self.assertEqual(label_path_for_image(image_path, data_yaml).resolve(), (label_dir / "sample.txt").resolve())
 
 
 if __name__ == "__main__":
