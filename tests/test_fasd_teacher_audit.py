@@ -4,9 +4,10 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import json
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageDraw
 
 from tools.idea_diag_common import Box
 from tools.fasd_teacher_audit import (
@@ -74,7 +75,7 @@ class FASDTeacherAuditTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             out_dir = Path(tmp) / "fasd"
             data_yaml = Path(tmp) / "data.yaml"
-            data_yaml.write_text("path: .\n", encoding="utf-8")
+            data_yaml.write_text("path: .\nval: images/val\n", encoding="utf-8")
 
             subprocess.run(
                 [
@@ -98,6 +99,52 @@ class FASDTeacherAuditTests(unittest.TestCase):
             self.assertTrue((out_dir / "summary.json").exists())
             self.assertTrue((out_dir / "teacher_quality_records.json").exists())
             self.assertTrue((out_dir / "report.md").exists())
+
+    def test_cli_audits_labeled_images_with_edge_proxy(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            image_dir = root / "images" / "val"
+            label_dir = root / "labels" / "val"
+            image_dir.mkdir(parents=True)
+            label_dir.mkdir(parents=True)
+            image = Image.new("L", (64, 64), 20)
+            draw = ImageDraw.Draw(image)
+            draw.rectangle([18, 18, 46, 46], fill=230)
+            image.convert("RGB").save(image_dir / "sample.jpg")
+            (label_dir / "sample.txt").write_text("0 0.5 0.5 0.6 0.6\n", encoding="utf-8")
+            data_yaml = root / "data.yaml"
+            data_yaml.write_text("path: .\nval: images/val\nnames: ['defect']\n", encoding="utf-8")
+            out_dir = root / "fasd"
+
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(PROJECT_ROOT / "tools" / "fasd_teacher_audit.py"),
+                    "--data-yaml",
+                    str(data_yaml),
+                    "--out-dir",
+                    str(out_dir),
+                    "--provider",
+                    "edge_proxy",
+                    "--max-samples",
+                    "1",
+                    "--min-records",
+                    "1",
+                    "--min-usable-rate",
+                    "0.0",
+                ],
+                cwd=PROJECT_ROOT,
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+
+            records = json.loads((out_dir / "teacher_quality_records.json").read_text(encoding="utf-8"))
+            summary = json.loads((out_dir / "summary.json").read_text(encoding="utf-8"))
+
+            self.assertEqual(len(records), 1)
+            self.assertEqual(summary["records"], 1)
+            self.assertIn("coverage", records[0])
 
     def test_cli_help_lists_diagnostic_inputs(self) -> None:
         result = subprocess.run(

@@ -16,7 +16,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from tools.idea_diag_common import Box, gate_passes, write_json
+from tools.idea_diag_common import Box, gate_passes, load_yolo_labels, write_json
 
 
 @dataclass(frozen=True)
@@ -143,6 +143,43 @@ def write_report(summary: dict[str, Any], out: Path) -> None:
     out.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def audit_edge_proxy_dataset(
+    data_yaml: Path,
+    split: str,
+    *,
+    max_samples: int = 100,
+    edge_threshold: int = 25,
+    config: MaskQualityConfig | None = None,
+) -> list[dict[str, Any]]:
+    quality_config = config or MaskQualityConfig()
+    labels = load_yolo_labels(data_yaml, split, max_images=0)
+    if max_samples > 0:
+        labels = labels[:max_samples]
+
+    records: list[dict[str, Any]] = []
+    image_cache: dict[str, Image.Image] = {}
+    try:
+        for label in labels:
+            image_path = str(label["image_path"])
+            if image_path not in image_cache:
+                image_cache[image_path] = Image.open(image_path).convert("RGB")
+            mask = edge_proxy_mask(image_cache[image_path], label["box"], threshold=edge_threshold)
+            row = score_mask_quality(mask, quality_config)
+            row.update(
+                {
+                    "image_id": label["image_id"],
+                    "gt_index": label["gt_index"],
+                    "cls": label["cls"],
+                    "image_path": image_path,
+                }
+            )
+            records.append(row)
+    finally:
+        for image in image_cache.values():
+            image.close()
+    return records
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Audit FASD-YOLO proxy teacher mask quality.")
     parser.add_argument("--data-yaml", type=Path, required=True, help="YOLO data.yaml path.")
@@ -160,8 +197,12 @@ def main() -> None:
     parser.add_argument("--clearml-task-name", default=None)
     args = parser.parse_args()
 
-    # Full dataset traversal is intentionally deferred; this slice keeps the diagnostic API stable.
-    records: list[dict[str, Any]] = []
+    records = audit_edge_proxy_dataset(
+        args.data_yaml,
+        args.split,
+        max_samples=args.max_samples,
+        edge_threshold=args.edge_threshold,
+    )
     summary = summarize_teacher_quality(
         records,
         min_records=args.min_records,
