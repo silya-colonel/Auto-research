@@ -225,7 +225,8 @@ def check_gpu_available(host: str, device: int) -> bool:
 
 def build_background_command(remote_cmd: str, log_file: str) -> str:
     """Wrap a remote shell command for background execution with logging."""
-    return f"nohup bash -c {shlex.quote('exec ' + remote_cmd)} > {shlex.quote(log_file)} 2>&1 & echo PID=$!"
+    script = "set -e; " + remote_cmd
+    return f"nohup bash -c {shlex.quote(script)} > {shlex.quote(log_file)} 2>&1 & echo PID=$!"
 
 
 def ssh_run(host: str, remote_cmd: str, run: object, dry_run: bool = False) -> int:

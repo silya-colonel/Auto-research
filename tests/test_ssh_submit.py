@@ -219,7 +219,8 @@ runs:
         command = build_background_command("cd ~/ar && echo ok", "/tmp/run.log")
 
         self.assertTrue(command.startswith("nohup bash -c "))
-        self.assertIn("exec cd ~/ar && echo ok", command)
+        self.assertIn("set -e; cd ~/ar && echo ok", command)
+        self.assertNotIn("exec cd", command)
         self.assertIn("> /tmp/run.log 2>&1 & echo PID=$!", command)
 
 
